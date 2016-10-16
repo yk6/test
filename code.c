@@ -22,25 +22,25 @@
 //	DATE,
 //} MODE;
 
-int32_t xoff = 0;
+int32_t xoff = 0;		//initial accelerometer calibration values
 int32_t yoff = 0;
 int32_t zoff = 0;
 
-int8_t x = 0;
+int8_t x = 0;			//global variables for accelerometer values
 int8_t y = 0;
 int8_t z = 0;
 
 volatile uint32_t msTick = 0;
 
-uint32_t led7segTime = 0;
-uint8_t led7segCount = 0;
+uint32_t led7segTime = 0;	//time of the 7 seg
+uint8_t led7segCount = 0;	//current number displayed on 7seg
 
-uint32_t l = 0;
+uint32_t l = 0;			//global light variable
 
-int32_t t = 0;
+int32_t t = 0;			//global temp variable
 
-uint16_t ledOn = 0;
-uint32_t indicatorTime = 0;
+uint16_t ledOn = 0;		//led number focused on
+uint32_t indicatorTime = 0;	//time of the indicator for energy level
 
 static void init_ssp(void)
 {
@@ -104,24 +104,24 @@ static void init_GPIO(void)
 	PINSEL_CFG_Type PinCfg;
 	PinCfg.Funcnum = 0;
 	PinCfg.Pinnum = 4;
-	PinCfg.Portnum = 0;   //sw3 bl en
+	PinCfg.Portnum = 0;   		//sw3 bl en
 	PINSEL_ConfigPin(&PinCfg);
-	GPIO_SetDir(0, 1<<4, 0);  //set sw3 as input
+	GPIO_SetDir(0, 1<<4, 0); 	//set sw3 as input
 
 	PinCfg.Pinnum = 9;
 	PinCfg.Portnum = 1;
-	PINSEL_ConfigPin(&PinCfg);     //red rgb
-	GPIO_SetDir(1, 1<<9, 1);  //set as output
+	PINSEL_ConfigPin(&PinCfg);  	//red rgb
+	GPIO_SetDir(1, 1<<9, 1); 	//set as output
 
 	PinCfg.Pinnum = 2;
 	PinCfg.Portnum = 1;
-	PINSEL_ConfigPin(&PinCfg);     //green rgb
-	GPIO_SetDir(1, 1<<2, 1);  //set as output
+	PINSEL_ConfigPin(&PinCfg);     	//green rgb
+	GPIO_SetDir(1, 1<<2, 1);  	//set as output
 
 	PinCfg.Pinnum = 10;
 	PinCfg.Portnum = 1;
-	PINSEL_ConfigPin(&PinCfg);    //blue rgb
-	GPIO_SetDir(1, 1<<10, 1);  //set as output
+	PINSEL_ConfigPin(&PinCfg);   	//blue rgb
+	GPIO_SetDir(1, 1<<10, 1); 	//set as output
 
 
 }
@@ -136,7 +136,7 @@ void SysTick_Handler(void){                               /* SysTick interrupt H
 }
 
 void EINT3_IRQHandler (void){
-	if((LPC_GPIOINT->IO0IntStatF>>4)&0x1){			// interrupt handler
+	if((LPC_GPIOINT->IO0IntStatF>>4)&0x1){			// GPIO interrupt handler
 		LPC_GPIOINT->IO0IntClr = 1<<4;
 	}
 }

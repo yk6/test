@@ -166,11 +166,11 @@ void startInitialise (void){
 
 }
 
-void readTemp(uint32_t *t){
+void readTemp(void){
 	t = temp_read();
 }
 
-void readLight(uint32_t *l){
+void readLight(void){
 	l = light_read();
 }
 

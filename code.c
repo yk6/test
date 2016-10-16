@@ -39,6 +39,9 @@ uint32_t l = 0;
 
 int32_t t = 0;
 
+uint16_t ledOn = 0;
+uint32_t indicatorTime = 0;
+
 static void init_ssp(void)
 {
 	SSP_CFG_Type SSP_ConfigStruct;
@@ -161,9 +164,10 @@ void startInitialise (void){
     rgb_init();
 	light_enable();
 
-	calibrateAcc();				// start up calibration of accelerometer
+	calibrateAcc();					// start up calibration of accelerometer
 
-	led7segTimer = getMsTick();	// set timer = current time
+	led7segTimer = getMsTick();		// set timer = current time
+	indicatorTime = getMsTick();	// set energy time = current time  
 
 
 }
@@ -247,10 +251,17 @@ void led7segTimer (void) {
 	}
 }
 
+void energy (void) {
+	if (getMsTick() - indicatorTime >= INDICATOR_TIME_UNIT) {
+		ledOn++;
+		pca9532_setLeds(ledOn,0xffff);
+	}
+}
+
 
 void PASSIVE(void){
 
-	uint8_t ch[40] = {'PASSIVE'};
+	uint8_t ch[40] = "PASSIVE";
 
 	oled_putString(30,20,(uint8_t*)ch, OLED_COLOR_BLACK, OLED_COLOR_WHITE);
 

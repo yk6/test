@@ -163,6 +163,8 @@ void startInitialise (void){
 
 	calibrateAcc();				// start up calibration of accelerometer
 
+	led7segTimer = getMsTick();	// set timer = current time
+
 
 }
 
@@ -182,8 +184,10 @@ void readAcc(void) {
 }
 
 void led7segTimer (void) {
-	if ( (getMsTick() - led7segTime) > 1000) {
+	if ( (getMsTick() - led7segTime) >= 1000) {
 		led7segCount++;
+		led7segTime = getMsTick();
+
 		if (led7segCount == 16){
 			led7segCount = 0;
 		}
@@ -242,6 +246,7 @@ void led7segTimer (void) {
 		}
 	}
 }
+
 
 void PASSIVE(void){
 

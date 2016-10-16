@@ -26,20 +26,11 @@ int32_t xoff = 0;
 int32_t yoff = 0;
 int32_t zoff = 0;
 
-int8_t x = 0;
-int8_t y = 0;
-int8_t z = 0;
-
 volatile uint32_t msTick = 0;
 
 uint32_t led7segTime = 0;
 uint8_t led7segCount = 0;
 
-uint32_t l = 0;
-
-int32_t t = 0;
-
-uint16_t ledOn = 0;
 uint32_t indicatorTime = 0;
 
 static void init_ssp(void)
@@ -132,7 +123,7 @@ uint32_t getMsTick(void){
 }
 
 void SysTick_Handler(void){                               /* SysTick interrupt Handler.*/
-  msTick++;
+	msTick++;
 }
 
 void EINT3_IRQHandler (void){
@@ -149,6 +140,7 @@ void calibrateAcc(void) {
 }
 
 void startInitialise (void){
+	int8_t x = 0, y = 0, z = 0;
 
 	SysTick_Config(SystemCoreClock / 1000);			//interrupt every ms
 
@@ -172,12 +164,14 @@ void startInitialise (void){
 
 }
 
-void readTemp(void){
-	t = temp_read();
+double readTemp(int32_t t){
+	t = temp_read()/10.0;
+	return t;
 }
 
-void readLight(void){
+uint32_t readLight(void){
 	l = light_read();
+	return l;
 }
 
 void readAcc(void) {
@@ -252,14 +246,16 @@ void led7segTimer (void) {
 }
 
 void energy (void) {
+	static uint16_t ledOn = 16;
 	if (getMsTick() - indicatorTime >= INDICATOR_TIME_UNIT) {
-		ledOn++;
+		ledOn--;
 		pca9532_setLeds(ledOn,0xffff);
 	}
 }
 
-
 void PASSIVE(void){
+	int8_t x = 0, y = 0, z = 0;
+	led7segTimer();
 
 	uint8_t ch[40] = "PASSIVE";
 
@@ -271,6 +267,7 @@ void PASSIVE(void){
 }
 
 void DATE (void){
+	int8_t x = 0, y = 0, z = 0;
 	readAcc();
 }
 

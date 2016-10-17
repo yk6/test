@@ -4,7 +4,7 @@
 #include "lpc17xx_ssp.h"
 #include "lpc17xx_timer.h"
 
-
+//gittest
 #include "acc.h"
 #include "led7seg.h"
 #include "light.h"

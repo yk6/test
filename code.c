@@ -22,9 +22,10 @@
 //	DATE,
 //} MODE;
 
-int32_t xoff = 0;		//initial accelerometer calibration values
-int32_t yoff = 0;
-int32_t zoff = 0;
+int8_t xoff = 0;		//initial accelerometer calibration values
+int8_t yoff = 0;
+int8_t zoff = 0;
+
 
 volatile uint32_t msTick = 0;
 
@@ -120,15 +121,7 @@ void SysTick_Handler(void){                               /* SysTick interrupt H
 	msTick++;
 }
 
-
-void calibrateAcc(int8_t x, int8_t y, int8_t z) {
-    acc_read(&x,&y,&z);
-    xoff = 0-x;
-    yoff = 0-y;
-    zoff = 64-z;
-}
-
-void startInitialise (void){
+void startInit(void){
 	int8_t x = 0, y = 0, z = 0;
 
     init_i2c();
@@ -159,13 +152,6 @@ double readTemp(int32_t t){
 uint32_t readLight(uint32_t l){
 	l = light_read();
 	return l;
-}
-
-void readAcc(int32_t x, int32_t y, int32_t z) {
-	acc_read(&x,&y,&z);
-	x += xoff;
-	y += yoff;
-	z += zoff;
 }
 
 void led7segTimer (void) {
@@ -233,45 +219,51 @@ void led7segTimer (void) {
 }
 
 void energy (void) {
-	static uint16_t ledOn = 16;
+	static uint16_t ledOn = 0xffff;
 	if (getMsTick() - indicatorTime >= INDICATOR_TIME_UNIT) {
-		ledOn--;
+		ledOn>>=1;
 		pca9532_setLeds(ledOn,0xffff);
 	}
 }
 
-void PASSIVE(void){
-	int8_t x = 0, y = 0, z = 0;
-	uint32_t l = 0;
-	int32_t t = 0;
+void calibrateAcc(int8_t x,int8_t y,int8_t z) {
+	acc_read(&x,&y,&z);
+	xoff = 0-x;
+	yoff = 0-y;
+	zoff = 0-z;
 }
 
-void DATE(void){
-	int8_t x = 0, y = 0, z = 0;
-
+void readAcc(int8_t x, int8_t y, int8_t z) {
+	acc_read(&x,&y,&z);
+	x += xoff;
+	y += yoff;
+	z += zoff;
 }
 
 
 int main (void) {
+	int8_t x=0 ,y=0,z=0;
+	double t= 0;
 	uint32_t l = 0;
-	int32_t t = 0;
 
-	SysTick_Config(SystemCoreClock / 1000);			//interrupt every ms
+	SysTick_Config(SystemCoreClock/1000);			//interrupt every ms
 
-	startInitialise();
-
-
+	startInit();
 
     while (1)
     {
-//    	LPC_GPIOINT->IO0IntEnF |= 1<<4;		//enable interrupt
-//    	NVIC_EnableIRQ(EINT3_IRQn);
 
 
+    	acc_read(&x,&y,&z);
+    	x += xoff;
+    	y += yoff;
+    	z += zoff;
+
+    	t=readTemp(t);
+    	l=readLight(l);
     	led7segTimer();
     	energy();
-    	printf("Temp = %lf\n",readTemp(t));
-    	printf("Lux = %u\n",readLight(l));
+
 
 
     	Timer0_Wait(1);

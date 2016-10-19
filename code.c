@@ -16,6 +16,7 @@
 #define WARNING_LOWER 50
 #define WARNING_UPPER 1000
 #define INDICATOR_TIME_UNIT 208
+#define BLINK_TIME 333
 
 //typedef enum {				// use enum or use a function as a whole?
 //	PASSIVE =0X00,
@@ -32,8 +33,12 @@ volatile uint32_t msTick = 0;
 uint32_t led7segTime = 0;	//time of the 7 seg
 uint8_t led7segCount = 0;	//current number displayed on 7seg
 
-uint16_t ledOn = 0;		//led number focused on
+uint16_t ledOn = 0;			//led number focused on
 uint32_t indicatorTime = 0;	//time of the indicator for energy level
+uint32_t rgbTime = 0;
+
+uint8_t on_red = 0;
+uint8_t on_blue = 0;
 
 static void init_ssp(void)
 {
@@ -137,11 +142,13 @@ void startInit(void){
 	light_enable();
 
 	calibrateAcc(x,y,z);			// start up calibration of accelerometer
-
+	rgbInit();
+	
+	led7seg_setChar('0',FALSE);		
 	led7segTime = getMsTick();		// set timer = current time
 	indicatorTime = getMsTick();	// set energy time = current time
-
-
+	rgbTime = getMsTick();			
+	
 }
 
 double readTemp(int32_t t){
@@ -223,6 +230,7 @@ void energy (void) {
 	if (getMsTick() - indicatorTime >= INDICATOR_TIME_UNIT) {
 		ledOn>>=1;
 		pca9532_setLeds(ledOn,0xffff);
+		indicatorTime=getMsTick();
 	}
 }
 
@@ -233,13 +241,55 @@ void calibrateAcc(int8_t x,int8_t y,int8_t z) {
 	zoff = 0-z;
 }
 
-void readAcc(int8_t x, int8_t y, int8_t z) {
-	acc_read(&x,&y,&z);
-	x += xoff;
-	y += yoff;
-	z += zoff;
+void rgbInit (void)
+{
+	PINSEL_CFG_Type PinCfg;
+
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 0;
+	PinCfg.Funcnum = 0;
+	PINSEL_ConfigPin(&PinCfg);			// rgb Red
+
+	PinCfg.Portnum = 0;
+	PinCfg.Pinnum = 26;
+	PinCfg.Funcnum = 0;
+	PINSEL_ConfigPin(&PinCfg);			// rgb Blue
+
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 1;
+	PinCfg.Funcnum = 0;
+	PINSEL_ConfigPin(&PinCfg);			// rgb Green
+
+
+	GPIO_SetDir(2,(1<<0),1);
+	GPIO_SetDir(0,(1<<26),1);
+	GPIO_SetDir(2,(1<<1),1);
+	GPIO_ClearValue(2,1<<1);
+
 }
 
+void rgbInvert(void) {
+	uint8_t red_state;
+	uint8_t blue_state;
+
+	if (on_red == 1) {
+		red_state = GPIO_ReadValue(2);
+		GPIO_ClearValue(2,(red_state & (1 << 0)));
+		GPIO_SetValue(2,((~red_state) & (1 << 0)));
+	}
+	if (on_blue == 1) {
+		blue_state = GPIO_ReadValue(0);
+		GPIO_ClearValue(0,(blue_state & (1 << 26)));
+		GPIO_SetValue(0,((~blue_state) & (1 << 26)));
+	}
+}
+
+void rgbBlink(void) {
+	if (getMsTick() - rgbTime >= BLINK_TIME) {
+		rgbInvert();
+		rgbTime = getMsTick();
+	}
+}
 
 int main (void) {
 	int8_t x=0 ,y=0,z=0;
@@ -250,23 +300,16 @@ int main (void) {
 
 	startInit();
 
+	
+
+
+
     while (1)
     {
 
-
-    	acc_read(&x,&y,&z);
-    	x += xoff;
-    	y += yoff;
-    	z += zoff;
-
-    	t=readTemp(t);
-    	l=readLight(l);
-    	led7segTimer();
-    	energy();
+    	rgbBlink();
 
 
-
-    	Timer0_Wait(1);
     }
 
 }

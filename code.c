@@ -18,26 +18,26 @@
 #define INDICATOR_TIME_UNIT 208
 #define BLINK_TIME 333
 
-//typedef enum {				// use enum or use a function as a whole?
+//typedef enum {					// use enum or use a function as a whole?
 //	PASSIVE =0X00,
 //	DATE,
 //} MODE;
 
-int8_t xoff = 0;		//initial accelerometer calibration values
+int8_t xoff = 0;					//initial accelerometer calibration values
 int8_t yoff = 0;
 int8_t zoff = 0;
 
 
-volatile uint32_t msTick = 0;
+volatile uint32_t msTick = 0;		// ms clock
 
-uint32_t led7segTime = 0;	//time of the 7 seg
-uint8_t led7segCount = 0;	//current number displayed on 7seg
+uint32_t led7segTime = 0;			//time of the 7 seg
+uint8_t led7segCount = 0;			//current number displayed on 7seg
 
-uint16_t ledOn = 0;			//led number focused on
-uint32_t indicatorTime = 0;	//time of the indicator for energy level
+uint16_t ledOn = 0;					//time counters
+uint32_t indicatorTime = 0;			
 uint32_t rgbTime = 0;
 
-uint8_t on_red = 0;
+uint8_t on_red = 0;					// flag control for rgb
 uint8_t on_blue = 0;
 
 static void init_ssp(void)
@@ -122,7 +122,7 @@ uint32_t getMsTick(void){
 	return msTick;
 }
 
-void SysTick_Handler(void){                               /* SysTick interrupt Handler.*/
+void SysTick_Handler(void){     	// SysTick interrupt Handler.
 	msTick++;
 }
 
@@ -133,7 +133,7 @@ void startInit(void){
     init_ssp();
     init_GPIO();
 
-	acc_init();					// initiate devices
+	acc_init();						// initiate devices
 	pca9532_init();
     oled_init();
     temp_init(&getMsTick);
@@ -144,7 +144,7 @@ void startInit(void){
 	calibrateAcc(x,y,z);			// start up calibration of accelerometer
 	rgbInit();
 	
-	led7seg_setChar('0',FALSE);		
+	led7seg_setChar('*',FALSE);		
 	led7segTime = getMsTick();		// set timer = current time
 	indicatorTime = getMsTick();	// set energy time = current time
 	rgbTime = getMsTick();			
@@ -152,7 +152,7 @@ void startInit(void){
 }
 
 double readTemp(int32_t t){
-	t = temp_read()/10.0;
+	t = temp_read()/10.0;			// to be improved
 	return t;
 }
 
@@ -219,7 +219,7 @@ void led7segTimer (void) {
 				led7seg_setChar('F',FALSE);
 				break;
 			default:
-				led7seg_setChar(' ',FALSE);
+				led7seg_setChar('*',FALSE);
 				break;
 		}
 	}
@@ -248,17 +248,17 @@ void rgbInit (void)
 	PinCfg.Portnum = 2;
 	PinCfg.Pinnum = 0;
 	PinCfg.Funcnum = 0;
-	PINSEL_ConfigPin(&PinCfg);			// rgb Red
+	PINSEL_ConfigPin(&PinCfg);		// rgb Red
 
 	PinCfg.Portnum = 0;
 	PinCfg.Pinnum = 26;
 	PinCfg.Funcnum = 0;
-	PINSEL_ConfigPin(&PinCfg);			// rgb Blue
+	PINSEL_ConfigPin(&PinCfg);		// rgb Blue
 
 	PinCfg.Portnum = 2;
 	PinCfg.Pinnum = 1;
 	PinCfg.Funcnum = 0;
-	PINSEL_ConfigPin(&PinCfg);			// rgb Green
+	PINSEL_ConfigPin(&PinCfg);		// rgb Green
 
 
 	GPIO_SetDir(2,(1<<0),1);
@@ -299,10 +299,10 @@ int main (void) {
 	SysTick_Config(SystemCoreClock/1000);			//interrupt every ms
 
 	startInit();
-
+	rgb_init();
 	
-
-
+	on_red = 1;
+	on_blue = 1;
 
     while (1)
     {

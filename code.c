@@ -17,6 +17,8 @@
 #define WARNING_UPPER 1000
 #define INDICATOR_TIME_UNIT 208
 #define BLINK_TIME 333
+#define PASSIVE 1
+#define DATE 2
 
 //typedef enum {					// use enum or use a function as a whole?
 //	PASSIVE =0X00,
@@ -26,12 +28,21 @@
 int8_t xoff = 0;					//initial accelerometer calibration values
 int8_t yoff = 0;
 int8_t zoff = 0;
+int8_t x = 0;
+int8_t y = 0;
+int8_t z = 0;
+double t = 0.0;						//initial temp and light
+uint32_t l = 0;
+uint32_t mode = 0;
 
 
 volatile uint32_t msTick = 0;		// ms clock
 
 uint32_t led7segTime = 0;			//time of the 7 seg
 uint8_t led7segCount = 0;			//current number displayed on 7seg
+uint32_t end_PASSIVE_button = 0;	// flag for end of passive
+uint32_t end_PASSIVE = 0;			// end of passive
+uint32_t update_request = 0;		// 7seg update at 5,A,F
 
 uint16_t ledOn = 0;					//time counters
 uint32_t indicatorTime = 0;
@@ -147,27 +158,131 @@ void startInit(void){
 	calibrateAcc(x,y,z);			// start up calibration of accelerometer
 	rgbInit();
 
-	led7seg_setChar('*',FALSE);
-	led7segTime = getMsTick();		// set timer = current time
-	indicatorTime = getMsTick();	// set energy time = current time
-	rgbTime = getMsTick();
+	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
+	oled_clearScreen(OLED_COLOR_BLACK);  // make oled screen blank
 
 }
 
-double readTemp(int32_t t){
+void oled_update (void){
+	uint8_t str_value_temp[15] = {};
+	uint8_t str_value_lux[15] = {};
+	uint8_t str_value_ax[15] = {};
+	uint8_t str_value_ay[15] = {};
+	uint8_t str_value_az[15] = {};
+
+	calibrateAcc();
+	readLight();
+	readTemp();
+
+	sprintf(str_value_temp,"%f",t);			//how to make 0.00000 to 0.0
+	sprintf(str_value_lux,"%d",l);
+	sprintf(str_value_ax,"%d",xoff);
+	sprintf(str_value_ay,"%d",yoff);
+	sprintf(str_value_az,"%d",zoff);
+
+	str_value_temp[4] = '\0';
+
+	if(l<1000){
+		str_value_lux[3]=' ';				//make sure it is displayed right
+		if(l<100){
+			str_value_lux[2]=' ';
+			if(l<10){
+				str_value_lux[1]=' ';
+			}
+		}
+	}
+
+	if((xoff > -10 && xoff < 0)||(xoff > 9 && xoff < 100)){		//-9to-1, 10-99
+		str_value_ax[2] = ' ';
+	}
+	if((xoff > -1)&&(xoff < 10)){								//0-9
+		str_value_ax[1] = ' ';
+		str_value_ax[2] = ' ';
+	}
+	if((yoff > -10 && yoff < 0)||(yoff > 9 && yoff < 100)){		//-9to-1, 10-99
+		str_value_ay[2] = ' ';
+	}
+	if((yoff > -1)&&(yoff < 10)){								//0-9
+		str_value_ay[1] = ' ';
+		str_value_ay[2] = ' ';
+	}
+	if((zoff > -10 && zoff < 0)||(zoff > 9 && zoff < 100)){		//-9to-1, 10-99
+		str_value_az[2] = ' ';
+	}
+	if((zoff > -1)&&(zoff < 10)){								//0-9
+		str_value_az[1] = ' ';
+		str_value_az[2] = ' ';
+	}
+
+	oled_putString(32, 11, (uint8_t*)str_value_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 21, (uint8_t*)str_value_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 31, (uint8_t*)str_value_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 41, (uint8_t*)str_value_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 51, (uint8_t*)str_value_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+
+}
+
+void oled_DATE_label (void){
+	uint8_t str_passive[15] = {"MODE: DATE"};
+	uint8_t str_label_temp[15] = {"TEMP:"};
+	uint8_t str_label_lux[15] = {"LUX:"};
+	uint8_t str_label_ax[15] = {"AX:"};
+	uint8_t str_label_ay[15] = {"AY:"};
+	uint8_t str_label_az[15] = {"AZ:"};
+	uint8_t str_value_temp[15] = {"DATE MODE"};
+	uint8_t str_value_lux[15] = {"DATE MODE"};
+	uint8_t str_value_ax[15] = {"DATE MODE"};
+	uint8_t str_value_ay[15] = {"DATE MODE"};
+	uint8_t str_value_az[15] = {"DATE MODE"};
+
+	oled_putString(2, 1, (uint8_t*)str_passive, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 11, (uint8_t*)str_label_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 21, (uint8_t*)str_label_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 31, (uint8_t*)str_label_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 41, (uint8_t*)str_label_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 51, (uint8_t*)str_label_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 11, (uint8_t*)str_value_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 21, (uint8_t*)str_value_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 31, (uint8_t*)str_value_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 41, (uint8_t*)str_value_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 51, (uint8_t*)str_value_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+
+
+}
+
+void oled_PASSIVE_label (void){
+	uint8_t str_passive[15] = {"MODE: PASSIVE"};
+	uint8_t str_label_temp[15] = {"TEMP:"};
+	uint8_t str_label_lux[15] = {"LUX:"};
+	uint8_t str_label_ax[15] = {"AX:"};
+	uint8_t str_label_ay[15] = {"AY:"};
+	uint8_t str_label_az[15] = {"AZ:"};
+
+	oled_putString(2, 1, (uint8_t*)str_passive, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 11, (uint8_t*)str_label_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 21, (uint8_t*)str_label_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 31, (uint8_t*)str_label_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 41, (uint8_t*)str_label_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 51, (uint8_t*)str_label_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+
+}
+
+void readTemp(void){
 	t = temp_read()/10.0;			// to be improved
-	return t;
 }
 
-uint32_t readLight(uint32_t l){
+void readLight(void){
 	l = light_read();
-	return l;
 }
 
 void led7segTimer (void) {
-	if ( (getMsTick() - led7segTime) >= 1000) {
+	uint32_t time_diff = 0;
+
+	time_diff = getMsTick() - led7segTime;
+	if ( (time_diff) >= 1000) {
 		led7segCount++;
-		led7segTime = getMsTick();
+		time_diff = time_diff - 1000;			//excess time
+		led7segTime = getMsTick() + time_diff;	//so that overall 0-F is 16 seconds exact
 
 		if (led7segCount == 16){
 			led7segCount = 0;
@@ -190,6 +305,7 @@ void led7segTimer (void) {
 				break;
 			case 5:
 				led7seg_setChar('5',FALSE);
+				update_request = 1;
 				break;
 			case 6:
 				led7seg_setChar('6',FALSE);
@@ -205,21 +321,27 @@ void led7segTimer (void) {
 				break;
 			case 10:
 				led7seg_setChar('A',FALSE);
+				update_request = 1;
 				break;
 			case 11:
-				led7seg_setChar('B',FALSE);
+				led7seg_setChar('8',FALSE);
 				break;
 			case 12:
 				led7seg_setChar('C',FALSE);
 				break;
 			case 13:
-				led7seg_setChar('D',FALSE);
+				led7seg_setChar('0',FALSE);
 				break;
 			case 14:
 				led7seg_setChar('E',FALSE);
 				break;
 			case 15:
+				if(end_PASSIVE_button){				// condition fulfilled if button pressed before F shows up
+					end_PASSIVE = 1;
+					end_PASSIVE_button = 0;
+				}
 				led7seg_setChar('F',FALSE);
+				update_request = 1;
 				break;
 			default:
 				led7seg_setChar('*',FALSE);
@@ -237,7 +359,7 @@ void energy (void) {
 	}
 }
 
-void calibrateAcc(int8_t x,int8_t y,int8_t z) {
+void calibrateAcc(void) {
 	acc_read(&x,&y,&z);
 	xoff = 0-x;
 	yoff = 0-y;
@@ -269,6 +391,11 @@ void rgbInit (void)
 	GPIO_SetDir(2,(1<<1),1);
 //	GPIO_ClearValue(2,1<<1);		// removed rgb green jumper
 
+}
+
+void rgb_off(void){
+	on_blue = 0;
+	on_red = 0;
 }
 
 void rgbInvert(void) {
@@ -304,22 +431,76 @@ void rgbBlink(void) {
 	}
 }
 
+void PASSIVE_MODE (void){
+	uint8_t btn = 0;
+
+	oled_PASSIVE_label();
+	oled_update();
+	while(1){
+		rgbBlink();				//call blink outside if condition to ensure constant blinking
+		led7segTimer();
+		if(update_request){
+			oled_update();
+			update_request = 0;
+			if((l<50)&&(on_red==0)){
+				on_red = 1;
+				on_blue = 1;
+				rgbBlink();				//call blink to synchronize
+			}
+			if((l>=50)&&(l<=1000)&&(on_blue==0)){
+				on_blue = 1;
+			}
+		}
+
+
+//------------------button pressed conditions from here below---------------
+		btn = (GPIO_ReadValue(0) >> 17) ;
+		if(btn==222){
+			end_PASSIVE_button = 1;
+		}
+		if(end_PASSIVE){
+			end_PASSIVE = 0;
+			break;
+		}
+	}
+
+}
+
+void DATE_MODE(void){
+	rgb_off();
+	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
+	oled_DATE_label();
+	while(1){
+
+	}
+}
+
 int main (void) {
-	int8_t x=0 ,y=0,z=0;
-	double t= 0;
-	uint32_t l = 0;
+	uint8_t btn = 0;
+	uint8_t start_condition = 0;			//for sw2
 
 	SysTick_Config(SystemCoreClock/1000);			//interrupt every ms
 
 	startInit();
 
-	on_red = 0;
-	on_blue = 1;
+
 
     while (1)
     {
+    	btn = (GPIO_ReadValue(0) >> 17) ;
+    	printf("%d\n",btn);
+		if(btn==222){
+			start_condition = 1;
+		}
+		if(start_condition){
+			rgbTime = getMsTick();
+			led7segTime = getMsTick();		// set timer = current time
+    		PASSIVE_MODE();
+			indicatorTime = getMsTick();	// set energy time = current time
+			DATE_MODE();
+			printf("reached date mode\n");
 
-    	rgbBlink();
+    	}
 
 
     }

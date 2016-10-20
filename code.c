@@ -34,11 +34,14 @@ uint32_t led7segTime = 0;			//time of the 7 seg
 uint8_t led7segCount = 0;			//current number displayed on 7seg
 
 uint16_t ledOn = 0;					//time counters
-uint32_t indicatorTime = 0;			
+uint32_t indicatorTime = 0;
 uint32_t rgbTime = 0;
 
 uint8_t on_red = 0;					// flag control for rgb
 uint8_t on_blue = 0;
+
+
+uint8_t blue_flag = 0;				// status flag for rgb blue
 
 static void init_ssp(void)
 {
@@ -143,12 +146,12 @@ void startInit(void){
 
 	calibrateAcc(x,y,z);			// start up calibration of accelerometer
 	rgbInit();
-	
-	led7seg_setChar('*',FALSE);		
+
+	led7seg_setChar('*',FALSE);
 	led7segTime = getMsTick();		// set timer = current time
 	indicatorTime = getMsTick();	// set energy time = current time
-	rgbTime = getMsTick();			
-	
+	rgbTime = getMsTick();
+
 }
 
 double readTemp(int32_t t){
@@ -264,24 +267,34 @@ void rgbInit (void)
 	GPIO_SetDir(2,(1<<0),1);
 	GPIO_SetDir(0,(1<<26),1);
 	GPIO_SetDir(2,(1<<1),1);
-	GPIO_ClearValue(2,1<<1);
+//	GPIO_ClearValue(2,1<<1);		// removed rgb green jumper
 
 }
 
 void rgbInvert(void) {
 	uint8_t red_state;
-	uint8_t blue_state;
+//	uint8_t blue_state;
 
 	if (on_red == 1) {
 		red_state = GPIO_ReadValue(2);
 		GPIO_ClearValue(2,(red_state & (1 << 0)));
 		GPIO_SetValue(2,((~red_state) & (1 << 0)));
 	}
+//	if (on_blue == 1) {									// somehow this method dont work for blue
+//		blue_state = GPIO_ReadValue(0);
+//		GPIO_ClearValue(0,(blue_state & (1 << 26)));
+//		GPIO_SetValue(0,((~blue_state) & (1 << 26)));
+//	}
 	if (on_blue == 1) {
-		blue_state = GPIO_ReadValue(0);
-		GPIO_ClearValue(0,(blue_state & (1 << 26)));
-		GPIO_SetValue(0,((~blue_state) & (1 << 26)));
+		if (blue_flag == 0) {
+			GPIO_SetValue(0,1<<26);
+			blue_flag=1;
+		} else if (blue_flag == 1) {
+			GPIO_ClearValue(0,1<<26);
+			blue_flag=0;
+		}
 	}
+
 }
 
 void rgbBlink(void) {
@@ -299,9 +312,8 @@ int main (void) {
 	SysTick_Config(SystemCoreClock/1000);			//interrupt every ms
 
 	startInit();
-	rgb_init();
-	
-	on_red = 1;
+
+	on_red = 0;
 	on_blue = 1;
 
     while (1)

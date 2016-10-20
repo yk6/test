@@ -1,33 +1,53 @@
-//  ways to set rgb
+
+1  change 
+
+
+SysTick_Config(SystemCoreClock/1000);
+
+to 
+
+SysTick_Config(100000);				// interrupt  at 10µs 
+
+/***************************************************************************
 
 
 
-/**********************************************
-	set up GPIO
 
-	P2.0 is red
-	P0.26 is blue 
-	P2.1 is green
+***************************************************************************/
 
-	then set direction  
+2   change 
 
-	then 
-	GPIO_ClearValue
-	GPIO_SetValue
-	GPIO_ReadValue
+void SysTick_Handler(void){     	// SysTick interrupt Handler.		
+	msTick++;						
+}
 
 
+to 
 
-	or use rgb library     0x01 is red
-						   0x02 is blue
-						   0x04 is green
+rmb to add uint32_t Tick = 0;
 
-	current problem is can control rgb red to blink at desire freq but the blue rgb will always juz light up 
+void SysTick_Handler(void){     	// SysTick interrupt Handler.
+	Tick++;
+	if (Tick%100 == 0) {
+		msTick++;
+	}
+}
 
-	and stop changing.
-
-	tested with manually inputting flag to set value can work,   but dk why cant make it blink
+/***************************************************************************
 
 
 
-*************************************************/
+
+***************************************************************************/
+
+3    then try  led7segTimer(); 
+
+see if it changes at rate of 1s
+
+or use some printf to check the msTick 
+
+or u can pass in &Tick to temp_read and 
+
+printf the time before and after temp_read
+
+to check whether it was read faster

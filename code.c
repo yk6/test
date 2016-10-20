@@ -16,23 +16,32 @@
 #define WARNING_LOWER 50
 #define WARNING_UPPER 1000
 #define INDICATOR_TIME_UNIT 208
+#define BLINK_TIME 333
 
-//typedef enum {				// use enum or use a function as a whole?
+//typedef enum {					// use enum or use a function as a whole?
 //	PASSIVE =0X00,
 //	DATE,
 //} MODE;
 
-int32_t xoff = 0;		//initial accelerometer calibration values
-int32_t yoff = 0;
-int32_t zoff = 0;
+int8_t xoff = 0;					//initial accelerometer calibration values
+int8_t yoff = 0;
+int8_t zoff = 0;
 
-volatile uint32_t msTick = 0;
 
-uint32_t led7segTime = 0;	//time of the 7 seg
-uint8_t led7segCount = 0;	//current number displayed on 7seg
+volatile uint32_t msTick = 0;		// ms clock
 
-uint16_t ledOn = 0;		//led number focused on
-uint32_t indicatorTime = 0;	//time of the indicator for energy level
+uint32_t led7segTime = 0;			//time of the 7 seg
+uint8_t led7segCount = 0;			//current number displayed on 7seg
+
+uint16_t ledOn = 0;					//time counters
+uint32_t indicatorTime = 0;
+uint32_t rgbTime = 0;
+
+uint8_t on_red = 0;					// flag control for rgb
+uint8_t on_blue = 0;
+
+
+uint8_t blue_flag = 0;				// status flag for rgb blue
 
 static void init_ssp(void)
 {
@@ -93,27 +102,20 @@ static void init_i2c(void)
 static void init_GPIO(void)
 {
 	// Initialize button
-	PINSEL_CFG_Type PinCfg;
-	PinCfg.Funcnum = 0;
-	PinCfg.Pinnum = 4;
-	PinCfg.Portnum = 0;   		//sw3 bl en
-	PINSEL_ConfigPin(&PinCfg);
-	GPIO_SetDir(0, 1<<4, 0); 	//set sw3 as input
 
-	PinCfg.Pinnum = 9;
-	PinCfg.Portnum = 1;
-	PINSEL_ConfigPin(&PinCfg);  	//red rgb
-	GPIO_SetDir(1, 1<<9, 1); 	//set as output
+PINSEL_CFG_Type PinCfg;
 
-	PinCfg.Pinnum = 2;
-	PinCfg.Portnum = 1;
-	PINSEL_ConfigPin(&PinCfg);     	//green rgb
-	GPIO_SetDir(1, 1<<2, 1);  	//set as output
+	PinCfg.Funcnum=0;
+	PinCfg.OpenDrain=0;
+	PinCfg.Pinmode=0;
+	PinCfg.Portnum=1; //P1.31
+	PinCfg.Pinnum=31;
 
-	PinCfg.Pinnum = 10;
-	PinCfg.Portnum = 1;
-	PINSEL_ConfigPin(&PinCfg);   	//blue rgb
-	GPIO_SetDir(1, 1<<10, 1); 	//set as output
+PINSEL_ConfigPin(&PinCfg);//sw4
+
+	PinCfg.Portnum=2; // P2.10
+	PinCfg.Pinnum=10;
+PINSEL_ConfigPin(&PinCfg);//sw3
 
 
 }
@@ -123,33 +125,18 @@ uint32_t getMsTick(void){
 	return msTick;
 }
 
-void SysTick_Handler(void){                               /* SysTick interrupt Handler.*/
+void SysTick_Handler(void){     	// SysTick interrupt Handler.
 	msTick++;
 }
 
-void EINT3_IRQHandler (void){
-	if((LPC_GPIOINT->IO0IntStatF>>4)&0x1){			// GPIO interrupt handler
-		LPC_GPIOINT->IO0IntClr = 1<<4;
-	}
-}
-
-void calibrateAcc(void) {
-    acc_read(&x,&y,&z);
-    xoff = 0-x;
-    yoff = 0-y;
-    zoff = 64-z;
-}
-
-void startInitialise (void){
+void startInit(void){
 	int8_t x = 0, y = 0, z = 0;
-
-	SysTick_Config(SystemCoreClock / 1000);			//interrupt every ms
 
     init_i2c();
     init_ssp();
     init_GPIO();
 
-	acc_init();					// initiate devices
+	acc_init();						// initiate devices
 	pca9532_init();
     oled_init();
     temp_init(&getMsTick);
@@ -157,29 +144,24 @@ void startInitialise (void){
     rgb_init();
 	light_enable();
 
-	calibrateAcc();					// start up calibration of accelerometer
+	calibrateAcc(x,y,z);			// start up calibration of accelerometer
+	rgbInit();
 
-	led7segTimer = getMsTick();		// set timer = current time
-	indicatorTime = getMsTick();	// set energy time = current time  
-
+	led7seg_setChar('*',FALSE);
+	led7segTime = getMsTick();		// set timer = current time
+	indicatorTime = getMsTick();	// set energy time = current time
+	rgbTime = getMsTick();
 
 }
 
 double readTemp(int32_t t){
-	t = temp_read()/10.0;
+	t = temp_read()/10.0;			// to be improved
 	return t;
 }
 
-uint32_t readLight(void){
+uint32_t readLight(uint32_t l){
 	l = light_read();
 	return l;
-}
-
-void readAcc(void) {
-	acc_read(&x,&y,&z);
-	x += xoff;
-	y += yoff;
-	z += zoff;
 }
 
 void led7segTimer (void) {
@@ -240,64 +222,106 @@ void led7segTimer (void) {
 				led7seg_setChar('F',FALSE);
 				break;
 			default:
-				led7seg_setChar(' ',FALSE);
+				led7seg_setChar('*',FALSE);
 				break;
 		}
 	}
 }
 
 void energy (void) {
-	static uint16_t ledOn = 16;
+	static uint16_t ledOn = 0xffff;
 	if (getMsTick() - indicatorTime >= INDICATOR_TIME_UNIT) {
-		ledOn--;
+		ledOn>>=1;
 		pca9532_setLeds(ledOn,0xffff);
+		indicatorTime=getMsTick();
 	}
 }
 
-void PASSIVE(void){
-	int8_t x = 0, y = 0, z = 0;
-	led7segTimer();
-
-	uint8_t ch[40] = "PASSIVE";
-
-	oled_putString(30,20,(uint8_t*)ch, OLED_COLOR_BLACK, OLED_COLOR_WHITE);
-
-	readAcc();
-	readTemp();
-	readLight();
+void calibrateAcc(int8_t x,int8_t y,int8_t z) {
+	acc_read(&x,&y,&z);
+	xoff = 0-x;
+	yoff = 0-y;
+	zoff = 0-z;
 }
 
-void DATE (void){
-	int8_t x = 0, y = 0, z = 0;
-	readAcc();
+void rgbInit (void)
+{
+	PINSEL_CFG_Type PinCfg;
+
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 0;
+	PinCfg.Funcnum = 0;
+	PINSEL_ConfigPin(&PinCfg);		// rgb Red
+
+	PinCfg.Portnum = 0;
+	PinCfg.Pinnum = 26;
+	PinCfg.Funcnum = 0;
+	PINSEL_ConfigPin(&PinCfg);		// rgb Blue
+
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 1;
+	PinCfg.Funcnum = 0;
+	PINSEL_ConfigPin(&PinCfg);		// rgb Green
+
+
+	GPIO_SetDir(2,(1<<0),1);
+	GPIO_SetDir(0,(1<<26),1);
+	GPIO_SetDir(2,(1<<1),1);
+//	GPIO_ClearValue(2,1<<1);		// removed rgb green jumper
+
 }
 
+void rgbInvert(void) {
+	uint8_t red_state;
+//	uint8_t blue_state;
+
+	if (on_red == 1) {
+		red_state = GPIO_ReadValue(2);
+		GPIO_ClearValue(2,(red_state & (1 << 0)));
+		GPIO_SetValue(2,((~red_state) & (1 << 0)));
+	}
+//	if (on_blue == 1) {									// somehow this method dont work for blue
+//		blue_state = GPIO_ReadValue(0);
+//		GPIO_ClearValue(0,(blue_state & (1 << 26)));
+//		GPIO_SetValue(0,((~blue_state) & (1 << 26)));
+//	}
+	if (on_blue == 1) {
+		if (blue_flag == 0) {
+			GPIO_SetValue(0,1<<26);
+			blue_flag=1;
+		} else if (blue_flag == 1) {
+			GPIO_ClearValue(0,1<<26);
+			blue_flag=0;
+		}
+	}
+
+}
+
+void rgbBlink(void) {
+	if (getMsTick() - rgbTime >= BLINK_TIME) {
+		rgbInvert();
+		rgbTime = getMsTick();
+	}
+}
 
 int main (void) {
-	uint32_t PASSIVE_MODE = 0;
-	uint32_t DATE_MODE = 0;
-	uint32_t SAFE_MODE = 0;
+	int8_t x=0 ,y=0,z=0;
+	double t= 0;
+	uint32_t l = 0;
 
-	uint32_t MODE_TOGGLE = 0;
+	SysTick_Config(SystemCoreClock/1000);			//interrupt every ms
 
-	uint8_t mode = 0;
+	startInit();
 
-
-
-
-
+	on_red = 0;
+	on_blue = 1;
 
     while (1)
     {
-//    	LPC_GPIOINT->IO0IntEnF |= 1<<4;		//enable interrupt
-//    	NVIC_EnableIRQ(EINT3_IRQn);
-    	MODE_TOGGLE = (GPIO_ReadValue(0)>>4)&0x1;
+
+    	rgbBlink();
 
 
-
-
-
-    	Timer0_Wait(1);
     }
 
 }

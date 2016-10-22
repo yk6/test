@@ -20,6 +20,10 @@
 #define PASSIVE 1
 #define DATE 2
 
+//typedef enum {					// use enum or use a function as a whole?
+//	PASSIVE =0X00,
+//	DATE,
+//} MODE;
 
 int8_t xoff = 0;					//initial accelerometer calibration values
 int8_t yoff = 0;
@@ -190,11 +194,7 @@ void oled_update (void){
 	readLight();
 	readTemp();
 
-<<<<<<< HEAD
 	sprintf(str_value_temp,"%f",t);
-=======
-	sprintf(str_value_temp,"%.1f",t);			// changed to .1%f for printing 1dp
->>>>>>> fcf6433f6ef9fe47aede6d9563ab7953f2a327fc
 	sprintf(str_value_lux,"%d",l);
 	sprintf(str_value_ax,"%d",xoff);
 	sprintf(str_value_ay,"%d",yoff);
@@ -203,7 +203,7 @@ void oled_update (void){
 	str_value_temp[4] = '\0';
 
 	if(l<1000){
-		str_value_lux[3]=' ';					//make sure it is displayed right
+		str_value_lux[3]=' ';				//make sure it is displayed right
 		if(l<100){
 			str_value_lux[2]=' ';
 			if(l<10){
@@ -302,7 +302,7 @@ void oled_PASSIVE_label (void){
 }
 
 void readTemp(void){
-	t = temp_read()/10.0;						// to be improved
+	t = temp_read()/10.0;			// to be improved
 }
 
 void readLight(void){
@@ -505,13 +505,8 @@ void PASSIVE_MODE (void){
 
 
 //------------------button pressed conditions from here below---------------
-<<<<<<< HEAD
 		btn = (GPIO_ReadValue(0) >> 17) & (0x1) ;
 		if(btn==0){
-=======
-		btn = (GPIO_ReadValue(0) >> 17) ;					
-		if(btn==222){
->>>>>>> fcf6433f6ef9fe47aede6d9563ab7953f2a327fc
 			end_PASSIVE_button = 1;
 		}
 		if(end_PASSIVE){
@@ -555,13 +550,10 @@ int main (void) {
 
 	startInit();
 
-<<<<<<< HEAD
 	NVIC_SetPriorityGrouping(5);			//priority setting for interrupt sw3
 	NVIC_SetPriority(EINT3_IRQn, 0x18);
 
 
-=======
->>>>>>> fcf6433f6ef9fe47aede6d9563ab7953f2a327fc
     while (1)
     {
     	btn = (GPIO_ReadValue(0) >> 17) & (0x1) ;

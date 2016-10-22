@@ -44,6 +44,9 @@ uint32_t end_PASSIVE_button = 0;	// flag for end of passive
 uint32_t end_PASSIVE = 0;			// end of passive
 uint32_t update_request = 0;		// 7seg update at 5,A,F
 
+uint32_t end_DATE = 0;				//end of date flag
+uint32_t clear_date_label = 0;
+
 uint16_t ledOn = 0;					//time counters
 uint32_t indicatorTime = 0;
 uint32_t rgbTime = 0;
@@ -119,18 +122,27 @@ PINSEL_CFG_Type PinCfg;
 	PinCfg.Funcnum=0;
 	PinCfg.OpenDrain=0;
 	PinCfg.Pinmode=0;
-	PinCfg.Portnum=1; //P1.31
-	PinCfg.Pinnum=31;
+	PinCfg.Portnum=0; //P0.17
+	PinCfg.Pinnum=17;
 
-PINSEL_ConfigPin(&PinCfg);//sw4
+PINSEL_ConfigPin(&PinCfg);//sw2
 
 	PinCfg.Portnum=2; // P2.10
 	PinCfg.Pinnum=10;
+
 PINSEL_ConfigPin(&PinCfg);//sw3
 
 
 }
 
+void EINT3_IRQHandler(void){
+	if((LPC_GPIOINT->IO2IntStatF >> 10)& 0x1){		//sw3 interrupt handler
+		if(mode){
+			update_request = 1;
+		}
+		LPC_GPIOINT->IO2IntClr = 1<<10;
+	}
+}
 
 uint32_t getMsTick(void){
 	return msTick;
@@ -163,6 +175,14 @@ void startInit(void){
 
 }
 
+void oled_value_clear (void){
+	oled_putString(32, 11, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 21, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 31, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 41, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(32, 51, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+}
+
 void oled_update (void){
 	uint8_t str_value_temp[15] = {};
 	uint8_t str_value_lux[15] = {};
@@ -174,7 +194,7 @@ void oled_update (void){
 	readLight();
 	readTemp();
 
-	sprintf(str_value_temp,"%f",t);			//how to make 0.00000 to 0.0
+	sprintf(str_value_temp,"%f",t);
 	sprintf(str_value_lux,"%d",l);
 	sprintf(str_value_ax,"%d",xoff);
 	sprintf(str_value_ay,"%d",yoff);
@@ -192,26 +212,41 @@ void oled_update (void){
 		}
 	}
 
+	if(xoff > 99){
+		str_value_ax[3] = ' ';									//100-128
+	}
 	if((xoff > -10 && xoff < 0)||(xoff > 9 && xoff < 100)){		//-9to-1, 10-99
 		str_value_ax[2] = ' ';
+		str_value_ax[3] = ' ';
 	}
 	if((xoff > -1)&&(xoff < 10)){								//0-9
 		str_value_ax[1] = ' ';
 		str_value_ax[2] = ' ';
+		str_value_ax[3] = ' ';
+	}
+	if(yoff > 99){
+		str_value_ay[3] = ' ';									//100-128
 	}
 	if((yoff > -10 && yoff < 0)||(yoff > 9 && yoff < 100)){		//-9to-1, 10-99
 		str_value_ay[2] = ' ';
+		str_value_ay[3] = ' ';
 	}
 	if((yoff > -1)&&(yoff < 10)){								//0-9
 		str_value_ay[1] = ' ';
 		str_value_ay[2] = ' ';
+		str_value_ay[3] = ' ';
+	}
+	if(zoff > 99){
+		str_value_az[3] = ' ';									//100-128
 	}
 	if((zoff > -10 && zoff < 0)||(zoff > 9 && zoff < 100)){		//-9to-1, 10-99
 		str_value_az[2] = ' ';
+		str_value_az[3] = ' ';
 	}
 	if((zoff > -1)&&(zoff < 10)){								//0-9
 		str_value_az[1] = ' ';
 		str_value_az[2] = ' ';
+		str_value_az[3] = ' ';
 	}
 
 	oled_putString(32, 11, (uint8_t*)str_value_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
@@ -247,7 +282,7 @@ void oled_DATE_label (void){
 	oled_putString(32, 41, (uint8_t*)str_value_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(32, 51, (uint8_t*)str_value_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 
-
+	clear_date_label = 1;
 }
 
 void oled_PASSIVE_label (void){
@@ -264,7 +299,6 @@ void oled_PASSIVE_label (void){
 	oled_putString(2, 31, (uint8_t*)str_label_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(2, 41, (uint8_t*)str_label_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(2, 51, (uint8_t*)str_label_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
 }
 
 void readTemp(void){
@@ -282,7 +316,7 @@ void led7segTimer (void) {
 	if ( (time_diff) >= 1000) {
 		led7segCount++;
 		time_diff = time_diff - 1000;			//excess time
-		led7segTime = getMsTick() + time_diff;	//so that overall 0-F is 16 seconds exact
+		led7segTime = getMsTick() - time_diff;	//so that overall 0-F is 16 seconds exact
 
 		if (led7segCount == 16){
 			led7segCount = 0;
@@ -351,11 +385,19 @@ void led7segTimer (void) {
 }
 
 void energy (void) {
+	uint32_t time_diff = 0;
 	static uint16_t ledOn = 0xffff;
-	if (getMsTick() - indicatorTime >= INDICATOR_TIME_UNIT) {
+
+	time_diff = getMsTick() - indicatorTime;
+	if (time_diff >= INDICATOR_TIME_UNIT) {
 		ledOn>>=1;
 		pca9532_setLeds(ledOn,0xffff);
-		indicatorTime=getMsTick();
+		time_diff = time_diff - INDICATOR_TIME_UNIT;			//excess time
+		indicatorTime = getMsTick() - time_diff;
+	}
+	if(ledOn == 0){
+		end_DATE = 1;
+		ledOn = 0xffff;
 	}
 }
 
@@ -396,6 +438,8 @@ void rgbInit (void)
 void rgb_off(void){
 	on_blue = 0;
 	on_red = 0;
+	GPIO_ClearValue(0,1<<26);
+	GPIO_ClearValue(2,1<<0);
 }
 
 void rgbInvert(void) {
@@ -434,28 +478,35 @@ void rgbBlink(void) {
 void PASSIVE_MODE (void){
 	uint8_t btn = 0;
 
-	oled_PASSIVE_label();
+	mode = 0;
+	if(clear_date_label){
+		oled_value_clear();
+		clear_date_label = 0;
+	}
+	oled_PASSIVE_label();		//print labels and first update of values
 	oled_update();
+	rgbTime = getMsTick();
+	led7segTime = getMsTick();		// set timer = current time
 	while(1){
 		rgbBlink();				//call blink outside if condition to ensure constant blinking
-		led7segTimer();
-		if(update_request){
+		led7segTimer();			//turn on the 7segtimer
+		if(update_request){		//update_request happens at 5,A,F
 			oled_update();
 			update_request = 0;
-			if((l<50)&&(on_red==0)){
+			if((l<50)&&(on_red==0)){		//conditions for which color to blink
 				on_red = 1;
 				on_blue = 1;
 				rgbBlink();				//call blink to synchronize
 			}
-			if((l>=50)&&(l<=1000)&&(on_blue==0)){
+			if((l>=50)&&(l<=1000)&&(on_blue==0)){		//conditions for which color to blink
 				on_blue = 1;
 			}
 		}
 
 
 //------------------button pressed conditions from here below---------------
-		btn = (GPIO_ReadValue(0) >> 17) ;
-		if(btn==222){
+		btn = (GPIO_ReadValue(0) >> 17) & (0x1) ;
+		if(btn==0){
 			end_PASSIVE_button = 1;
 		}
 		if(end_PASSIVE){
@@ -467,11 +518,27 @@ void PASSIVE_MODE (void){
 }
 
 void DATE_MODE(void){
+	mode = 1;
 	rgb_off();
 	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
 	oled_DATE_label();
+	indicatorTime = getMsTick();	// set energy time = current time
 	while(1){
-
+		energy();
+		LPC_GPIOINT->IO2IntEnF |= 1<<10;
+		NVIC_EnableIRQ(EINT3_IRQn);					//enable interrupt
+		if(update_request){
+			if(clear_date_label){
+				oled_value_clear();
+				clear_date_label = 0;
+			}
+			oled_update();
+			update_request = 0;
+		}
+		if(end_DATE){
+			end_DATE = 0;
+			break;
+		}
 	}
 }
 
@@ -483,22 +550,23 @@ int main (void) {
 
 	startInit();
 
+	NVIC_SetPriorityGrouping(5);			//priority setting for interrupt sw3
+	NVIC_SetPriority(EINT3_IRQn, 0x18);
 
 
     while (1)
     {
-    	btn = (GPIO_ReadValue(0) >> 17) ;
+    	btn = (GPIO_ReadValue(0) >> 17) & (0x1) ;
     	printf("%d\n",btn);
-		if(btn==222){
+		if(btn==0){
 			start_condition = 1;
 		}
 		if(start_condition){
-			rgbTime = getMsTick();
-			led7segTime = getMsTick();		// set timer = current time
+
     		PASSIVE_MODE();
-			indicatorTime = getMsTick();	// set energy time = current time
-			DATE_MODE();
 			printf("reached date mode\n");
+			DATE_MODE();
+
 
     	}
 

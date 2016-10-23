@@ -1,53 +1,23 @@
-
-1  change 
-
-
-SysTick_Config(SystemCoreClock/1000);
-
-to 
-
-SysTick_Config(100000);				// interrupt  at 10µs 
-
-/***************************************************************************
-
-
-
-
-***************************************************************************/
-
-2   change 
-
-void SysTick_Handler(void){     	// SysTick interrupt Handler.		
-	msTick++;						
-}
-
-
-to 
-
-rmb to add uint32_t Tick = 0;
-
-void SysTick_Handler(void){     	// SysTick interrupt Handler.
-	Tick++;
-	if (Tick%100 == 0) {
-		msTick++;
+uint32_t readTemp(void) {
+    if (LPC_GPIOINT->IO0IntStatF >> 2 && (0x01)) {
+    	 return getMsTick();
 	}
 }
 
-/***************************************************************************
+then use 2 uint32_t time to store 2 value returned from this function ( each from 1 interrupt) 
 
+uint32_t t1 = 0;
+uint32_t t2 = 0; 
+uint32_t t3 = 0;
+	if ( t1 != 0) {
+		t2 = readTemp();
+		t3 = t2 - t1;
+		t1 = 0;
+		t2 = 0;
+	} else {
+		t1 = readTemp();
+	}
 
+	then find out t3 is what   then follow this formula 
 
-
-***************************************************************************/
-
-3    then try  led7segTimer(); 
-
-see if it changes at rate of 1s
-
-or use some printf to check the msTick 
-
-or u can pass in &Tick to temp_read and 
-
-printf the time before and after temp_read
-
-to check whether it was read faster
+	T = t3 / 10 - 273.15 ;

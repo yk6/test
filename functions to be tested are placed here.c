@@ -69,3 +69,19 @@ int main (void) {
 	NVIC_EnableIRQ(TIMER0_IRQn);
 
 }
+
+
+/*-------------------------------------------------------------------------------
+
+
+********************************************************************************/
+
+SysTick_Config(SystemCoreClock/1000000);
+
+pass into init_temp();
+
+then change temp_read();    to µs as unit   maybe can try sample at lesser NUM_HALFCYCLE
+
+
+then try change SystemCoreClock making it variable 
+

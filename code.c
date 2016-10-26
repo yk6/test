@@ -17,6 +17,7 @@
 #define WARNING_UPPER 1000
 #define INDICATOR_TIME_UNIT 208
 #define BLINK_TIME 333
+#define SEGMENT_DISPLAY_TIME 1000
 #define PASSIVE 1
 #define DATE 2
 
@@ -31,16 +32,19 @@ int8_t zoff = 0;
 int8_t x = 0;
 int8_t y = 0;
 int8_t z = 0;
+
 double t = 0.0;						//initial temp and light
 uint32_t l = 0;
+
 uint32_t mode = 0;
 
-
+//	clock variables
 volatile uint32_t msTick = 0;		// ms clock
-volatile uint32_t ustick = 0;		//mircosecond
+volatile uint32_t usTick = 0;		// 10µs
 
 uint32_t led7segTime = 0;			//time of the 7 seg
 uint8_t led7segCount = 0;			//current number displayed on 7seg
+
 uint32_t end_PASSIVE_button = 0;	// flag for end of passive
 uint32_t end_PASSIVE = 0;			// end of passive
 uint32_t update_request = 0;		// 7seg update at 5,A,F
@@ -57,6 +61,150 @@ uint8_t on_blue = 0;
 
 
 uint8_t blue_flag = 0;				// status flag for rgb blue
+
+static void init_ssp(void);
+static void init_i2c(void);
+static void init_GPIO(void);
+
+void EINT3_IRQHandler(void);
+uint32_t getMsTick(void);
+uint32_t getUsTick(void);
+void SysTick_Handler(void);
+
+void startInit(void);
+
+//OLED FUNCTIONS
+void oled_value_clear (void);
+void oled_update (void);
+void oled_DATE_label (void);
+void oled_PASSIVE_label (void);
+
+//
+void readTemp(void);
+/* changed temp.c
+
+#define NUM_HALF_PERIODS 20
+
+return ( (2*10*t2) / (NUM_HALF_PERIODS*TEMP_SCALAR_DIV10) - 2731 );
+
+*/
+void readLight(void);
+void led7segTimer (void);
+void energy (void) ;
+void calibrateAcc(void);
+
+//RGB FUNCTIONS
+void rgbInit (void);
+void rgb_off(void);
+void rgbInvert(void);
+void rgbBlink(void);
+
+//MODE FUNCTIONS
+void PASSIVE_MODE (void);
+void DATE_MODE(void);
+
+void invert7seg(void) {
+	if (getMsTick() - led7segTime>= SEGMENT_DISPLAY_TIME) {
+		led7segTime=getMsTick();
+		if(led7segCount==16) {
+			led7segCount=0;
+		}
+		switch(led7segCount) {
+			case 0:
+				led7seg_setChar(0x24,TRUE);
+				break;
+			case 1:
+				led7seg_setChar(0x7D,TRUE);
+				break;
+			case 2:
+				led7seg_setChar(0xE0,TRUE);
+				break;
+			case 3:
+				led7seg_setChar(0x70,TRUE);
+				break;
+			case 4:
+				led7seg_setChar(0x39,TRUE);
+				break;
+			case 5:
+				led7seg_setChar(0x32,TRUE);
+				break;
+			case 6:
+				led7seg_setChar(0x22,TRUE);
+				break;
+			case 7:
+				led7seg_setChar(0x7C,TRUE);
+				break;
+			case 8:
+				led7seg_setChar(0x20,TRUE);
+				break;
+			case 9:
+				led7seg_setChar(0x30,TRUE);
+				break;
+			case 10:
+				led7seg_setChar(0x28,TRUE);
+				break;
+			case 11:
+				led7seg_setChar(0x20,TRUE);
+				break;
+			case 12:
+				led7seg_setChar(0xA6,TRUE);
+				break;
+			case 13:
+				led7seg_setChar(0x24,TRUE);
+				break;
+			case 14:
+				led7seg_setChar(0xA2,TRUE);
+				break;
+			case 15:
+				led7seg_setChar(0xAA,TRUE);
+				break;
+			default:;
+		}
+		led7segCount++;
+	}
+}
+
+int main (void) {
+	uint8_t btn = 0;
+	uint8_t start_condition = 0;			//for sw2
+
+	SysTick_Config(SystemCoreClock/100000);			//interrupt
+
+	startInit();
+
+
+	NVIC_SetPriorityGrouping(5);			//priority setting for interrupt sw3
+	NVIC_SetPriority(EINT3_IRQn, 0x18);		// 24 in DEC
+
+	int n = 1;
+
+    while (1)
+    {
+    	// invert7seg();
+   	btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
+   	printf("%d\n",btn);
+		if(btn==0){
+			start_condition = 1;
+		}
+		if(start_condition){
+
+   		PASSIVE_MODE();
+			DATE_MODE();
+   	}
+
+    }
+
+}
+
+void check_failed(uint8_t *file, uint32_t line)
+{
+	/* User can add his own implementation to report the file name and line number,
+	 ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+
+	/* Infinite loop */
+	while(1);
+}
+
 
 static void init_ssp(void)
 {
@@ -135,6 +283,11 @@ PINSEL_ConfigPin(&PinCfg);//sw2
 
 PINSEL_ConfigPin(&PinCfg);//sw3
 
+	PinCfg.Portnum=1; // P1.31	removed jumper for this to work
+	PinCfg.Pinnum=31;
+
+PINSEL_ConfigPin(&PinCfg);//sw4
+
 
 }
 
@@ -151,9 +304,13 @@ uint32_t getMsTick(void){
 	return msTick;
 }
 
+uint32_t getUsTick(void) {
+	return usTick;
+}
+
 void SysTick_Handler(void){     	// SysTick interrupt Handler.
-	ustick++;
-	if(ustick%1000==0){
+	usTick++;
+	if(usTick%100==0){
 		msTick++;
 	}
 }
@@ -168,13 +325,13 @@ void startInit(void){
 	acc_init();						// initiate devices
 	pca9532_init();
     oled_init();
-    temp_init(&getMsTick);
+    temp_init(&getUsTick);
     led7seg_init();
     rgb_init();
     light_setRange(LIGHT_RANGE_4000);
 	light_enable();
 
-	calibrateAcc(x,y,z);			// start up calibration of accelerometer
+	calibrateAcc();			// start up calibration of accelerometer
 	rgbInit();
 
 	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
@@ -320,10 +477,10 @@ void led7segTimer (void) {
 	uint32_t time_diff = 0;
 
 	time_diff = getMsTick() - led7segTime;
-	if ( (time_diff) >= 1000) {
+	if ( (time_diff) >= SEGMENT_DISPLAY_TIME) {
 		led7segCount++;
-		time_diff = time_diff - 1000;			//excess time
-		led7segTime = getMsTick() - time_diff;	//so that overall 0-F is 16 seconds exact
+		time_diff = time_diff - SEGMENT_DISPLAY_TIME;	//excess time
+		led7segTime = getMsTick() - time_diff;			//so that overall 0-F is 16 seconds exact
 
 		if (led7segCount == 16){
 			led7segCount = 0;
@@ -549,43 +706,3 @@ void DATE_MODE(void){
 	}
 }
 
-int main (void) {
-	uint8_t btn = 0;
-	uint8_t start_condition = 0;			//for sw2
-
-	SysTick_Config(SystemCoreClock/1000000);			//interrupt every ms
-
-	startInit();
-
-	NVIC_SetPriorityGrouping(5);			//priority setting for interrupt sw3
-	NVIC_SetPriority(EINT3_IRQn, 0x18);
-
-
-    while (1)
-    {
-    	btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
-    	printf("%d\n",btn);
-		if(btn==0){
-			start_condition = 1;
-		}
-		if(start_condition){
-
-    		PASSIVE_MODE();
-			DATE_MODE();
-
-
-    	}
-
-
-    }
-
-}
-
-void check_failed(uint8_t *file, uint32_t line)
-{
-	/* User can add his own implementation to report the file name and line number,
-	 ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-
-	/* Infinite loop */
-	while(1);
-}

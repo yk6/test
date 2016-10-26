@@ -28,12 +28,6 @@ uint32_t t3 = 0;
 
 *********************************************************************************************/
 
-//--------------------------------------------------------------------------------------------
-	// make faster SPI for oled
-
-	SSP_ConfigStructInit(&SSP_ConfigStruct);
-	SSP_ConfigStruct.ClockRate = 8000000;
-	
 
 //--------------------------------------------------------------------------------------------
 
@@ -76,12 +70,63 @@ int main (void) {
 
 ********************************************************************************/
 
-SysTick_Config(SystemCoreClock/1000000);
-
-pass into init_temp();
-
-then change temp_read();    to µs as unit   maybe can try sample at lesser NUM_HALFCYCLE
-
-
-then try change SystemCoreClock making it variable 
-
+void invert7seg(void) {
+	if (getMsTick() - led7segTime>= SEGMENT_DISPLAY_TIME) {
+		if(led7segCount==16){
+			led7segCount=0;
+		}
+		led7segTime=getMsTick();
+		switch(led7segCount) {
+			case 0:	
+				led7seg_setChar(0x24,TRUE);
+				break;
+			case 1:
+				led7seg_setChar(0x7D,TRUE);
+				break;
+			case 2:
+				led7seg_setChar(0xE0,TRUE);
+				break;
+			case 3:
+				led7seg_setChar(0x70,TRUE);
+				break;
+			case 4: 
+				led7seg_setChar(0x39,TRUE);
+				break;
+			case 5:
+				led7seg_setChar(0x32,TRUE);
+				break;
+			case 6:
+				led7seg_setChar(0x22,TRUE);
+				break;
+			case 7:
+				led7seg_setChar(0x7C,TRUE);
+				break;
+			case 8:
+				led7seg_setChar(0x20,TRUE);
+				break;
+			case 9:
+				led7seg_setChar(0x30,TRUE);
+				break;
+			case 10:
+				led7seg_setChar(0x28,TRUE);
+				break;
+			case 11:
+				led7seg_setChar(0x20,TRUE);
+				break;
+			case 12:
+				led7seg_setChar(0xA6,TRUE);
+				break;
+			case 13:
+				led7seg_setChar(0x24,TRUE);
+				break;
+			case 14:
+				led7seg_setChar(0xA2,TRUE);
+				break;
+			case 15:
+				led7seg_setChar(0xAA,TRUE);
+				break;
+			default:;
+		}
+		led7segCount++;
+	}
+}

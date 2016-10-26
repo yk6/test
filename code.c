@@ -37,6 +37,7 @@ uint32_t mode = 0;
 
 
 volatile uint32_t msTick = 0;		// ms clock
+volatile uint32_t ustick = 0;		//mircosecond
 
 uint32_t led7segTime = 0;			//time of the 7 seg
 uint8_t led7segCount = 0;			//current number displayed on 7seg
@@ -85,6 +86,8 @@ static void init_ssp(void)
 	PINSEL_ConfigPin(&PinCfg);
 
 	SSP_ConfigStructInit(&SSP_ConfigStruct);
+	SSP_ConfigStruct.ClockRate = 8000000;
+
 
 	// Initialize SSP peripheral with parameter given in structure above
 	SSP_Init(LPC_SSP1, &SSP_ConfigStruct);
@@ -149,7 +152,10 @@ uint32_t getMsTick(void){
 }
 
 void SysTick_Handler(void){     	// SysTick interrupt Handler.
-	msTick++;
+	ustick++;
+	if(ustick%1000==0){
+		msTick++;
+	}
 }
 
 void startInit(void){
@@ -165,6 +171,7 @@ void startInit(void){
     temp_init(&getMsTick);
     led7seg_init();
     rgb_init();
+    light_setRange(LIGHT_RANGE_4000);
 	light_enable();
 
 	calibrateAcc(x,y,z);			// start up calibration of accelerometer
@@ -505,7 +512,7 @@ void PASSIVE_MODE (void){
 
 
 //------------------button pressed conditions from here below---------------
-		btn = (GPIO_ReadValue(0) >> 17) & (0x1) ;
+		btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
 		if(btn==0){
 			end_PASSIVE_button = 1;
 		}
@@ -546,7 +553,7 @@ int main (void) {
 	uint8_t btn = 0;
 	uint8_t start_condition = 0;			//for sw2
 
-	SysTick_Config(SystemCoreClock/1000);			//interrupt every ms
+	SysTick_Config(SystemCoreClock/1000000);			//interrupt every ms
 
 	startInit();
 
@@ -556,7 +563,7 @@ int main (void) {
 
     while (1)
     {
-    	btn = (GPIO_ReadValue(0) >> 17) & (0x1) ;
+    	btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
     	printf("%d\n",btn);
 		if(btn==0){
 			start_condition = 1;
@@ -564,7 +571,6 @@ int main (void) {
 		if(start_condition){
 
     		PASSIVE_MODE();
-			printf("reached date mode\n");
 			DATE_MODE();
 
 

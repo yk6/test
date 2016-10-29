@@ -59,27 +59,37 @@ uint32_t rgbTime = 0;
 uint8_t on_red = 0;					// flag control for rgb
 uint8_t on_blue = 0;
 
-
 uint8_t blue_flag = 0;				// status flag for rgb blue
 
+//============================
+//		INITIALISATION
+//============================
 static void init_ssp(void);
 static void init_i2c(void);
 static void init_GPIO(void);
+void startInit(void);
 
+//============================
+//		INTERRUPTS
+//============================
 void EINT3_IRQHandler(void);
 uint32_t getMsTick(void);
 uint32_t getUsTick(void);
 void SysTick_Handler(void);
 
-void startInit(void);
 
-//OLED FUNCTIONS
+
+//=============================
+//		OLED FUNCTIONS
+//=============================
 void oled_value_clear (void);
 void oled_update (void);
 void oled_DATE_label (void);
 void oled_PASSIVE_label (void);
 
-//
+//=============================
+//		SENSORS
+//=============================
 void readTemp(void);
 /* changed temp.c
 
@@ -89,80 +99,31 @@ return ( (2*10*t2) / (NUM_HALF_PERIODS*TEMP_SCALAR_DIV10) - 2731 );
 
 */
 void readLight(void);
-void led7segTimer (void);
-void energy (void) ;
 void calibrateAcc(void);
 
-//RGB FUNCTIONS
+//=============================
+//		LED 7 SEGMENT
+//=============================
+void led7segTimer (void);
+void invert7seg(void);
+//=============================
+//		ENERGY INDICATOR
+//=============================
+void energy (void) ;
+
+//============================
+//		RGB FUNCTIONS
+//============================
 void rgbInit (void);
 void rgb_off(void);
 void rgbInvert(void);
 void rgbBlink(void);
 
-//MODE FUNCTIONS
+//=============================
+//		MODE FUNCTIONS
+//=============================
 void PASSIVE_MODE (void);
 void DATE_MODE(void);
-
-void invert7seg(void) {
-	if (getMsTick() - led7segTime>= SEGMENT_DISPLAY_TIME) {
-		led7segTime=getMsTick();
-		if(led7segCount==16) {
-			led7segCount=0;
-		}
-		switch(led7segCount) {
-			case 0:
-				led7seg_setChar(0x24,TRUE);
-				break;
-			case 1:
-				led7seg_setChar(0x7D,TRUE);
-				break;
-			case 2:
-				led7seg_setChar(0xE0,TRUE);
-				break;
-			case 3:
-				led7seg_setChar(0x70,TRUE);
-				break;
-			case 4:
-				led7seg_setChar(0x39,TRUE);
-				break;
-			case 5:
-				led7seg_setChar(0x32,TRUE);
-				break;
-			case 6:
-				led7seg_setChar(0x22,TRUE);
-				break;
-			case 7:
-				led7seg_setChar(0x7C,TRUE);
-				break;
-			case 8:
-				led7seg_setChar(0x20,TRUE);
-				break;
-			case 9:
-				led7seg_setChar(0x30,TRUE);
-				break;
-			case 10:
-				led7seg_setChar(0x28,TRUE);
-				break;
-			case 11:
-				led7seg_setChar(0x20,TRUE);
-				break;
-			case 12:
-				led7seg_setChar(0xA6,TRUE);
-				break;
-			case 13:
-				led7seg_setChar(0x24,TRUE);
-				break;
-			case 14:
-				led7seg_setChar(0xA2,TRUE);
-				break;
-			case 15:
-				led7seg_setChar(0xAA,TRUE);
-				break;
-			default:;
-		}
-		led7segCount++;
-	}
-}
 
 int main (void) {
 	uint8_t btn = 0;
@@ -206,6 +167,12 @@ void check_failed(uint8_t *file, uint32_t line)
 }
 
 
+
+
+
+//============================
+//		INITIALISATION
+//============================
 static void init_ssp(void)
 {
 	SSP_CFG_Type SSP_ConfigStruct;
@@ -234,8 +201,6 @@ static void init_ssp(void)
 	PINSEL_ConfigPin(&PinCfg);
 
 	SSP_ConfigStructInit(&SSP_ConfigStruct);
-	SSP_ConfigStruct.ClockRate = 8000000;
-
 
 	// Initialize SSP peripheral with parameter given in structure above
 	SSP_Init(LPC_SSP1, &SSP_ConfigStruct);
@@ -291,6 +256,38 @@ PINSEL_ConfigPin(&PinCfg);//sw4
 
 }
 
+void startInit(void){
+	int8_t x = 0, y = 0, z = 0;
+
+    init_i2c();
+    init_ssp();
+    init_GPIO();
+
+	acc_init();						// initiate devices
+	pca9532_init();
+    oled_init();
+    temp_init(&getUsTick);
+    led7seg_init();
+    rgb_init();
+    light_setRange(LIGHT_RANGE_4000);
+	light_enable();
+
+	calibrateAcc();			// start up calibration of accelerometer
+	rgbInit();
+
+	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
+	oled_clearScreen(OLED_COLOR_BLACK);  // make oled screen blank
+
+}
+
+
+
+
+
+//============================
+//		INTERRUPTS
+//============================
+
 void EINT3_IRQHandler(void){
 	if((LPC_GPIOINT->IO2IntStatF >> 10)& 0x1){		//sw3 interrupt handler
 		if(mode){
@@ -315,29 +312,14 @@ void SysTick_Handler(void){     	// SysTick interrupt Handler.
 	}
 }
 
-void startInit(void){
-	int8_t x = 0, y = 0, z = 0;
 
-    init_i2c();
-    init_ssp();
-    init_GPIO();
 
-	acc_init();						// initiate devices
-	pca9532_init();
-    oled_init();
-    temp_init(&getUsTick);
-    led7seg_init();
-    rgb_init();
-    light_setRange(LIGHT_RANGE_4000);
-	light_enable();
 
-	calibrateAcc();			// start up calibration of accelerometer
-	rgbInit();
 
-	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
-	oled_clearScreen(OLED_COLOR_BLACK);  // make oled screen blank
+//=============================
+//		OLED FUNCTIONS
+//=============================
 
-}
 
 void oled_value_clear (void){
 	oled_putString(32, 11, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
@@ -465,6 +447,13 @@ void oled_PASSIVE_label (void){
 	oled_putString(2, 51, (uint8_t*)str_label_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
+
+
+
+
+//=============================
+//		SENSORS
+//=============================
 void readTemp(void){
 	t = temp_read()/10.0;			// to be improved
 }
@@ -473,6 +462,20 @@ void readLight(void){
 	l = light_read();
 }
 
+void calibrateAcc(void) {
+	acc_read(&x,&y,&z);
+	xoff = 0-x;
+	yoff = 0-y;
+	zoff = 0-z;
+}
+
+
+
+
+
+//=============================
+//		LED 7 SEGMENT
+//=============================
 void led7segTimer (void) {
 	uint32_t time_diff = 0;
 
@@ -548,6 +551,74 @@ void led7segTimer (void) {
 	}
 }
 
+void invert7seg(void) {
+	if (getMsTick() - led7segTime>= SEGMENT_DISPLAY_TIME) {
+		led7segTime=getMsTick();
+		if(led7segCount==16) {
+			led7segCount=0;
+		}
+		switch(led7segCount) {
+			case 0:
+				led7seg_setChar(0x24,TRUE);
+				break;
+			case 1:
+				led7seg_setChar(0x7D,TRUE);
+				break;
+			case 2:
+				led7seg_setChar(0xE0,TRUE);
+				break;
+			case 3:
+				led7seg_setChar(0x70,TRUE);
+				break;
+			case 4:
+				led7seg_setChar(0x39,TRUE);
+				break;
+			case 5:
+				led7seg_setChar(0x32,TRUE);
+				break;
+			case 6:
+				led7seg_setChar(0x22,TRUE);
+				break;
+			case 7:
+				led7seg_setChar(0x7C,TRUE);
+				break;
+			case 8:
+				led7seg_setChar(0x20,TRUE);
+				break;
+			case 9:
+				led7seg_setChar(0x30,TRUE);
+				break;
+			case 10:
+				led7seg_setChar(0x28,TRUE);
+				break;
+			case 11:
+				led7seg_setChar(0x20,TRUE);
+				break;
+			case 12:
+				led7seg_setChar(0xA6,TRUE);
+				break;
+			case 13:
+				led7seg_setChar(0x24,TRUE);
+				break;
+			case 14:
+				led7seg_setChar(0xA2,TRUE);
+				break;
+			case 15:
+				led7seg_setChar(0xAA,TRUE);
+				break;
+			default:;
+		}
+		led7segCount++;
+	}
+}
+
+
+
+
+
+//=============================
+//		ENERGY INDICATOR
+//=============================
 void energy (void) {
 	uint32_t time_diff = 0;
 	static uint16_t ledOn = 0xffff;
@@ -565,13 +636,13 @@ void energy (void) {
 	}
 }
 
-void calibrateAcc(void) {
-	acc_read(&x,&y,&z);
-	xoff = 0-x;
-	yoff = 0-y;
-	zoff = 0-z;
-}
 
+
+
+
+//=============================
+//		RGB FUNCTIONS
+//=============================
 void rgbInit (void)
 {
 	PINSEL_CFG_Type PinCfg;
@@ -639,6 +710,13 @@ void rgbBlink(void) {
 	}
 }
 
+
+
+
+
+//=============================
+//		MODE FUNCTIONS
+//=============================
 void PASSIVE_MODE (void){
 	uint8_t btn = 0;
 
@@ -705,4 +783,3 @@ void DATE_MODE(void){
 		}
 	}
 }
-

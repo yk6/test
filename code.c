@@ -3,7 +3,7 @@
 #include "lpc17xx_i2c.h"
 #include "lpc17xx_ssp.h"
 #include "lpc17xx_timer.h"
-
+#include "lpc17xx_uart.h"
 
 #include "acc.h"
 #include "led7seg.h"
@@ -124,6 +124,12 @@ void rgbBlink(void);
 //=============================
 void PASSIVE_MODE (void);
 void DATE_MODE(void);
+
+//=============================
+//		UART FUNCTIONS
+//=============================
+
+
 
 int main (void) {
 	uint8_t btn = 0;

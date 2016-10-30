@@ -65,68 +65,66 @@ int main (void) {
 }
 
 
-/*-------------------------------------------------------------------------------
+/********************************************************************************
 
 
+
+									UART
+
+
+
+											
 ********************************************************************************/
 
-void invert7seg(void) {
-	if (getMsTick() - led7segTime>= SEGMENT_DISPLAY_TIME) {
-		if(led7segCount==16){
-			led7segCount=0;
+void pinsel_uart3(void) {
+	PINSEL_CFG_Type pin;
+	pin.Funcnum = 2;
+	pin.Pinnum = 0;
+	pin.Portnum = 0;
+	PINSEL_ConfigPin(&pin);
+	pin.Pinnum = 1;
+	PINSEL_ConfigPin(&pin);
+}
+
+void init_uart(void) {
+	UART_CFG_Type uart;
+	uart.Baud_rate = 115200;
+	uart.Databits = UART_DATA_BIT_8;
+	uart.Parity = UART_PARITY_NONE;
+	uart.Stopbits = UART_STOPBIT_1;
+	
+	pinsel_uart3();
+	
+	UART_Init(LPC_UART3, &uart);
+	UART_TxCmd(LPC_UART3, ENABLE);
+}
+
+static char *msg = NULL;
+
+void uart(void) {
+	uint8_t data = 0;
+	uint32_t len = 0;
+	uint8_t line[64];
+
+	init_uart();
+
+	msg = "Welcome to EE2024\r\n";
+	UART_Send(LPC_UART3,(uint8_t *)msg, strlen(msg), BLOCKING);
+
+	UART_Receive(LPC_UART3, &data, 1, BLOCKING);
+	UART_Send(LPC_UART3, &data, 1, BLOCKING);
+
+	len = 0;
+
+	do {
+		UART_Receive(LPC_UART3, &data, 1, BLOCKING);
+
+		if (data != '\r') {
+			len++;
+			line[len-1] = data;
 		}
-		led7segTime=getMsTick();
-		switch(led7segCount) {
-			case 0:	
-				led7seg_setChar(0x24,TRUE);
-				break;
-			case 1:
-				led7seg_setChar(0x7D,TRUE);
-				break;
-			case 2:
-				led7seg_setChar(0xE0,TRUE);
-				break;
-			case 3:
-				led7seg_setChar(0x70,TRUE);
-				break;
-			case 4: 
-				led7seg_setChar(0x39,TRUE);
-				break;
-			case 5:
-				led7seg_setChar(0x32,TRUE);
-				break;
-			case 6:
-				led7seg_setChar(0x22,TRUE);
-				break;
-			case 7:
-				led7seg_setChar(0x7C,TRUE);
-				break;
-			case 8:
-				led7seg_setChar(0x20,TRUE);
-				break;
-			case 9:
-				led7seg_setChar(0x30,TRUE);
-				break;
-			case 10:
-				led7seg_setChar(0x28,TRUE);
-				break;
-			case 11:
-				led7seg_setChar(0x20,TRUE);
-				break;
-			case 12:
-				led7seg_setChar(0xA6,TRUE);
-				break;
-			case 13:
-				led7seg_setChar(0x24,TRUE);
-				break;
-			case 14:
-				led7seg_setChar(0xA2,TRUE);
-				break;
-			case 15:
-				led7seg_setChar(0xAA,TRUE);
-				break;
-			default:;
-		}
-		led7segCount++;
-	}
+	}while (len<64 && data != '\r');
+	line[len] = 0;
+	UART_SendString(LPC_UART3, &line);
+	printf("--%s--\n", line);
 }

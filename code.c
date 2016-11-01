@@ -275,8 +275,9 @@ void startInit(void){
     temp_init(&getUsTick);
     led7seg_init();
     rgb_init();
+    light_enable();
     light_setRange(LIGHT_RANGE_4000);
-	light_enable();
+	
 
 	calibrateAcc();			// start up calibration of accelerometer
 	rgbInit();

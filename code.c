@@ -13,6 +13,7 @@
 #include "rgb.h"
 #include "temp.h"
 
+
 #define WARNING_LOWER 50
 #define WARNING_UPPER 1000
 #define INDICATOR_TIME_UNIT 208
@@ -128,8 +129,64 @@ void DATE_MODE(void);
 //=============================
 //		UART FUNCTIONS
 //=============================
+void pinsel_uart3(void) {
+	PINSEL_CFG_Type pin;
+	pin.Funcnum = 2;
+	pin.Pinnum = 0;
+	pin.Portnum = 0;
+	PINSEL_ConfigPin(&pin);
+	pin.Pinnum = 1;
+	PINSEL_ConfigPin(&pin);
+}
 
+void init_uart(void) {
+	UART_CFG_Type uart;
+	uart.Baud_rate = 115200;
+	uart.Databits = UART_DATABIT_8;
+	uart.Parity = UART_PARITY_NONE;
+	uart.Stopbits = UART_STOPBIT_1;
 
+	pinsel_uart3();
+
+	UART_Init(LPC_UART3, &uart);
+	UART_TxCmd(LPC_UART3, ENABLE);
+}
+
+static char *msg = NULL;
+
+void uart(void) {
+
+	uint8_t data = 0;
+	uint32_t len = 0;
+	uint8_t line[64];
+
+	init_uart();
+
+	msg = "Welcome to EE2024\r\n";
+	UART_Send(LPC_UART3,(uint8_t *)msg, strlen(msg), BLOCKING);
+
+	UART_Receive(LPC_UART3, &data, 1, BLOCKING);
+	UART_Send(LPC_UART3, &data, 1, BLOCKING);
+
+	len = 0;
+
+	do {
+		UART_Receive(LPC_UART3, &data, 1, BLOCKING);
+
+		if (data != '\r') {
+			len++;
+			line[len-1] = data;
+		}
+	}while (len<64 && data != '\r');
+	line[len] = 0;
+	UART_SendString(LPC_UART3, &line);
+	printf("--%s--\n", line);
+}
+
+//==============================
+//		MATH FUNCTION
+//==============================
+int round (double x);
 
 int main (void) {
 	uint8_t btn = 0;
@@ -143,13 +200,25 @@ int main (void) {
 	NVIC_SetPriorityGrouping(5);			//priority setting for interrupt sw3
 	NVIC_SetPriority(EINT3_IRQn, 0x18);		// 24 in DEC
 
-	int n = 1;
+//=================================================================================
+
+
+
 
     while (1)
     {
-    	// invert7seg(); 
-   	btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
-   	printf("%d\n",btn);
+//========================================================
+//    	uart();
+//    	invert7seg();
+
+//    	lightLED();
+
+//========================================================
+
+
+
+    	btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
+    	printf("%d\n",btn);
 		if(btn==0){
 			start_condition = 1;
 		}
@@ -157,7 +226,10 @@ int main (void) {
 
    		PASSIVE_MODE();
 			DATE_MODE();
-   	}
+		}
+
+
+
 
     }
 
@@ -207,6 +279,7 @@ static void init_ssp(void)
 	PINSEL_ConfigPin(&PinCfg);
 
 	SSP_ConfigStructInit(&SSP_ConfigStruct);
+
 
 	// Initialize SSP peripheral with parameter given in structure above
 	SSP_Init(LPC_SSP1, &SSP_ConfigStruct);
@@ -277,7 +350,7 @@ void startInit(void){
     rgb_init();
     light_enable();
     light_setRange(LIGHT_RANGE_4000);
-	
+
 
 	calibrateAcc();			// start up calibration of accelerometer
 	rgbInit();
@@ -789,4 +862,14 @@ void DATE_MODE(void){
 			break;
 		}
 	}
+}
+
+//==============================
+//		MATH FUNCTION
+//==============================
+
+int round(double x) {
+	int n;
+    n = x + 0.5;
+    return n;
 }

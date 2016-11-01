@@ -128,3 +128,33 @@ void uart(void) {
 	UART_SendString(LPC_UART3, &line);
 	printf("--%s--\n", line);
 }
+
+
+//================================================================================
+//							
+//
+//								TESTED FUNCTIONS
+//
+//
+//================================================================================
+
+int round(double x) {
+	int n;
+    x = 4.9;
+    n = x + 0.5;
+    return n;
+}
+
+void lightLED(void) {			//TODO
+	uint16_t light;				// make it increase as a bar but not 1 led each time
+	light = light_read();
+	double temp = light/500.0;
+	light = round(temp);
+	uint32_t shift = 1<<16;
+	shift >>=light;
+	if (light == 0) {
+		pca9532_setLeds(0,0xffff);
+	} else {
+		pca9532_setLeds(shift,0xffff);
+	}
+}

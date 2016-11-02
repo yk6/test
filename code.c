@@ -48,6 +48,7 @@ uint8_t led7segCount = 0;			//current number displayed on 7seg
 
 uint32_t end_PASSIVE_button = 0;	// flag for end of passive
 uint32_t end_PASSIVE = 0;			// end of passive
+uint8_t change_mode = 0;			// the instance when passive switch to date
 uint32_t update_request = 0;		// 7seg update at 5,A,F
 
 uint32_t end_DATE = 0;				//end of date flag
@@ -188,14 +189,14 @@ void uart(void) {
 //==============================
 int round (double x);
 
+
 int main (void) {
 	uint8_t btn = 0;
 	uint8_t start_condition = 0;			//for sw2
 
-	SysTick_Config(SystemCoreClock/100000);			//interrupt
+	SysTick_Config(SystemCoreClock/100000);	//interrupt
 
 	startInit();
-
 
 	NVIC_SetPriorityGrouping(5);			//priority setting for interrupt sw3
 	NVIC_SetPriority(EINT3_IRQn, 0x18);		// 24 in DEC
@@ -208,10 +209,9 @@ int main (void) {
     while (1)
     {
 //========================================================
-//    	uart();
-//    	invert7seg();
 
-//    	lightLED();
+
+//    	invert7seg();
 
 //========================================================
 
@@ -570,58 +570,78 @@ void led7segTimer (void) {
 		}
 		switch (led7segCount) {
 			case 0:
-				led7seg_setChar('0',FALSE);
+				if (end_PASSIVE == 1) {
+					change_mode = 1;
+					end_PASSIVE = 0;
+				}
+//				led7seg_setChar('0',FALSE);
+				led7seg_setChar(0x24,TRUE);
 				break;
 			case 1:
-				led7seg_setChar('1',FALSE);
+//				led7seg_setChar('1',FALSE);
+				led7seg_setChar(0x7D,TRUE);
 				break;
 			case 2:
-				led7seg_setChar('2',FALSE);
+//				led7seg_setChar('2',FALSE);
+				led7seg_setChar(0xE0,TRUE);
 				break;
 			case 3:
-				led7seg_setChar('3',FALSE);
+//				led7seg_setChar('3',FALSE);
+				led7seg_setChar(0x70,TRUE);
 				break;
 			case 4:
-				led7seg_setChar('4',FALSE);
+//				led7seg_setChar('4',FALSE);
+				led7seg_setChar(0x39,TRUE);
 				break;
 			case 5:
-				led7seg_setChar('5',FALSE);
+//				led7seg_setChar('5',FALSE);
+				led7seg_setChar(0x32,TRUE);
 				update_request = 1;
 				break;
 			case 6:
-				led7seg_setChar('6',FALSE);
+//				led7seg_setChar('6',FALSE);
+				led7seg_setChar(0x22,TRUE);
 				break;
 			case 7:
-				led7seg_setChar('7',FALSE);
+//				led7seg_setChar('7',FALSE);
+				led7seg_setChar(0x7C,TRUE);
 				break;
 			case 8:
-				led7seg_setChar('8',FALSE);
+//				led7seg_setChar('8',FALSE);
+				led7seg_setChar(0x20,TRUE);
 				break;
 			case 9:
-				led7seg_setChar('9',FALSE);
+//				led7seg_setChar('9',FALSE);
+				led7seg_setChar(0x30,TRUE);
 				break;
 			case 10:
-				led7seg_setChar('A',FALSE);
+//				led7seg_setChar('A',FALSE);
+				led7seg_setChar(0x28,TRUE);
 				update_request = 1;
 				break;
 			case 11:
-				led7seg_setChar('8',FALSE);
+//				led7seg_setChar('8',FALSE);
+				led7seg_setChar(0x20,TRUE);
 				break;
 			case 12:
-				led7seg_setChar('C',FALSE);
+//				led7seg_setChar('C',FALSE);
+				led7seg_setChar(0xA6,TRUE);
 				break;
 			case 13:
-				led7seg_setChar('0',FALSE);
+//				led7seg_setChar('0',FALSE);
+				led7seg_setChar(0x24,TRUE);
 				break;
 			case 14:
-				led7seg_setChar('E',FALSE);
+//				led7seg_setChar('E',FALSE);
+				led7seg_setChar(0xA2,TRUE);
 				break;
 			case 15:
 				if(end_PASSIVE_button){				// condition fulfilled if button pressed before F shows up
 					end_PASSIVE = 1;
 					end_PASSIVE_button = 0;
 				}
-				led7seg_setChar('F',FALSE);
+//				led7seg_setChar('F',FALSE);
+				led7seg_setChar(0xAA,TRUE);
 				update_request = 1;
 				break;
 			default:
@@ -831,8 +851,8 @@ void PASSIVE_MODE (void){
 		if(btn==0){
 			end_PASSIVE_button = 1;
 		}
-		if(end_PASSIVE){
-			end_PASSIVE = 0;
+		if(change_mode){
+			change_mode = 0;
 			break;
 		}
 	}

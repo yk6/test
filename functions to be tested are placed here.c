@@ -100,7 +100,11 @@ void init_uart(void) {
 }
 
 static char *msg = NULL;
+//==================================
+uint8_t uart_transmit[60] = {};
 
+sprintf(uart_transmit, "abcdefghijkl" , );
+//==================================
 void uart(void) {
 	uint8_t data = 0;
 	uint32_t len = 0;
@@ -128,6 +132,23 @@ void uart(void) {
 	UART_SendString(LPC_UART3, &line);
 	printf("--%s--\n", line);
 }
+//================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 //================================================================================
@@ -140,7 +161,6 @@ void uart(void) {
 
 int round(double x) {
 	int n;
-    x = 4.9;
     n = x + 0.5;
     return n;
 }
@@ -158,3 +178,8 @@ void lightLED(void) {			//TODO
 		pca9532_setLeds(shift,0xffff);
 	}
 }
+
+	// juz use pinsel3 and init_uart FOR NOW
+	sprintf(uart_transmit, "abcdefghijkl\r\n" );
+	UART_Send(LPC_UART3,(uint8_t *)uart_transmit, strlen(uart_transmit), BLOCKING);
+	UART_Receive(LPC_UART3, &uart_transmit, strlen(uart_transmit), BLOCKING);

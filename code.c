@@ -218,7 +218,6 @@ int main (void) {
 
 
     	btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
-    	printf("%d\n",btn);
 		if(btn==0){
 			start_condition = 1;
 		}

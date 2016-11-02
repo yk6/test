@@ -63,6 +63,10 @@ uint8_t on_blue = 0;
 
 uint8_t blue_flag = 0;				// status flag for rgb blue
 
+uint8_t uart_transmit[100];			// uart 
+uint32_t transmit_count = 0;	
+
+
 //============================
 //		INITIALISATION
 //============================
@@ -132,6 +136,7 @@ void DATE_MODE(void);
 //=============================
 void pinsel_uart3(void);
 void init_uart(void);
+
 
 
 //==============================
@@ -301,7 +306,7 @@ void startInit(void){
     rgb_init();
     light_enable();
     light_setRange(LIGHT_RANGE_4000);
-
+    init_uart();
 
 	calibrateAcc();			// start up calibration of accelerometer
 	rgbInit();

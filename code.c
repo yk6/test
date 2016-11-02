@@ -130,59 +130,9 @@ void DATE_MODE(void);
 //=============================
 //		UART FUNCTIONS
 //=============================
-void pinsel_uart3(void) {
-	PINSEL_CFG_Type pin;
-	pin.Funcnum = 2;
-	pin.Pinnum = 0;
-	pin.Portnum = 0;
-	PINSEL_ConfigPin(&pin);
-	pin.Pinnum = 1;
-	PINSEL_ConfigPin(&pin);
-}
+void pinsel_uart3(void);
+void init_uart(void);
 
-void init_uart(void) {
-	UART_CFG_Type uart;
-	uart.Baud_rate = 115200;
-	uart.Databits = UART_DATABIT_8;
-	uart.Parity = UART_PARITY_NONE;
-	uart.Stopbits = UART_STOPBIT_1;
-
-	pinsel_uart3();
-
-	UART_Init(LPC_UART3, &uart);
-	UART_TxCmd(LPC_UART3, ENABLE);
-}
-
-static char *msg = NULL;
-
-void uart(void) {
-
-	uint8_t data = 0;
-	uint32_t len = 0;
-	uint8_t line[64];
-
-	init_uart();
-
-	msg = "Welcome to EE2024\r\n";
-	UART_Send(LPC_UART3,(uint8_t *)msg, strlen(msg), BLOCKING);
-
-	UART_Receive(LPC_UART3, &data, 1, BLOCKING);
-	UART_Send(LPC_UART3, &data, 1, BLOCKING);
-
-	len = 0;
-
-	do {
-		UART_Receive(LPC_UART3, &data, 1, BLOCKING);
-
-		if (data != '\r') {
-			len++;
-			line[len-1] = data;
-		}
-	}while (len<64 && data != '\r');
-	line[len] = 0;
-	UART_SendString(LPC_UART3, &line);
-	printf("--%s--\n", line);
-}
 
 //==============================
 //		MATH FUNCTION
@@ -485,7 +435,7 @@ void oled_update (void){
 }
 
 void oled_DATE_label (void){
-	uint8_t str_date[15] = {"MODE: DATE"};
+	uint8_t str_date[15] = {"MODE:DATE"};
 	uint8_t str_label_temp[15] = {"TEMP:"};
 	uint8_t str_label_lux[15] = {"LUX:"};
 	uint8_t str_label_ax[15] = {"AX:"};
@@ -497,6 +447,7 @@ void oled_DATE_label (void){
 	uint8_t str_value_ay[15] = {"DATE MODE"};
 	uint8_t str_value_az[15] = {"DATE MODE"};
 
+	oled_clearScreen(OLED_COLOR_BLACK);
 	oled_putString(2, 1, (uint8_t*)str_date, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(2, 11, (uint8_t*)str_label_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(2, 21, (uint8_t*)str_label_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
@@ -513,7 +464,7 @@ void oled_DATE_label (void){
 }
 
 void oled_PASSIVE_label (void){
-	uint8_t str_passive[15] = {"MODE: PASSIVE"};
+	uint8_t str_passive[15] = {"MODE:PASSIVE"};
 	uint8_t str_label_temp[15] = {"TEMP:"};
 	uint8_t str_label_lux[15] = {"LUX:"};
 	uint8_t str_label_ax[15] = {"AX:"};
@@ -903,3 +854,31 @@ int round(double x) {
     n = x + 0.5;
     return n;
 }
+
+//=============================
+//		UART FUNCTIONS
+//=============================
+
+void pinsel_uart3(void) {
+	PINSEL_CFG_Type pin;
+	pin.Funcnum = 2;
+	pin.Pinnum = 0;
+	pin.Portnum = 0;
+	PINSEL_ConfigPin(&pin);
+	pin.Pinnum = 1;
+	PINSEL_ConfigPin(&pin);
+}
+
+void init_uart(void) {
+	UART_CFG_Type uart;
+	uart.Baud_rate = 115200;
+	uart.Databits = UART_DATABIT_8;
+	uart.Parity = UART_PARITY_NONE;
+	uart.Stopbits = UART_STOPBIT_1;
+
+	pinsel_uart3();
+
+	UART_Init(LPC_UART3, &uart);
+	UART_TxCmd(LPC_UART3, ENABLE);
+}
+

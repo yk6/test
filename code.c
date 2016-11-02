@@ -63,8 +63,15 @@ uint8_t on_blue = 0;
 
 uint8_t blue_flag = 0;				// status flag for rgb blue
 
-uint8_t uart_transmit[100];			// uart 
-uint32_t transmit_count = 0;	
+uint8_t uart_transmit0[10];			// uart
+uint8_t uart_transmit1[10];
+uint8_t uart_transmit2[10];
+uint8_t uart_transmit3[10];
+uint8_t uart_transmit4[10];
+uint8_t uart_transmit5[10];
+uint8_t uart_transmit[100];
+
+uint32_t transmit_count = 0;
 
 
 //============================
@@ -136,13 +143,15 @@ void DATE_MODE(void);
 //=============================
 void pinsel_uart3(void);
 void init_uart(void);
-
+void send_UartData(void);
 
 
 //==============================
 //		MATH FUNCTION
 //==============================
 int round (double x);
+
+//==============================
 
 
 int main (void) {
@@ -159,14 +168,11 @@ int main (void) {
 //=================================================================================
 
 
-
-
     while (1)
     {
 //========================================================
 
 
-//    	invert7seg();
 
 //========================================================
 
@@ -178,10 +184,10 @@ int main (void) {
 		}
 		if(start_condition){
 
-   		PASSIVE_MODE();
+			PASSIVE_MODE();
 			DATE_MODE();
 		}
-
+///
 
 
 
@@ -492,7 +498,7 @@ void oled_PASSIVE_label (void){
 //		SENSORS
 //=============================
 void readTemp(void){
-	t = temp_read()/10.0;			// to be improved
+	t = temp_read()/10.0;
 }
 
 void readLight(void){
@@ -599,6 +605,7 @@ void led7segTimer (void) {
 				}
 //				led7seg_setChar('F',FALSE);
 				led7seg_setChar(0xAA,TRUE);
+				send_UartData();
 				update_request = 1;
 				break;
 			default:
@@ -813,12 +820,12 @@ void PASSIVE_MODE (void){
 		if(btn==0){
 			end_PASSIVE_button = 1;
 			sprintf(date_impending,"(D)");			//show a D when button pressed so will know it will change to date soon
-			oled_putString(80, 1, (uint8_t*)date_impending, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+			oled_putString(79, 1, (uint8_t*)date_impending, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 		}
 		if(change_mode){
 			change_mode = 0;
 			sprintf(date_impending,"   ");			//clear the D
-			oled_putString(80, 1, (uint8_t*)date_impending, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+			oled_putString(79, 1, (uint8_t*)date_impending, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 			break;
 		}
 	}
@@ -885,5 +892,11 @@ void init_uart(void) {
 
 	UART_Init(LPC_UART3, &uart);
 	UART_TxCmd(LPC_UART3, ENABLE);
+}
+
+void send_UartData(void) {
+	sprintf(uart_transmit, "%03d_-_T %.1lf_L %4d_AX  %3d_AY  %3d_AZ  %3d_\r\n", transmit_count, t, l, x, y, z);
+	UART_Send(LPC_UART3, (uint8_t *)uart_transmit, strlen(uart_transmit), BLOCKING);
+	transmit_count++;
 }
 

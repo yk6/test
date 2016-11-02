@@ -336,7 +336,9 @@ PINSEL_ConfigPin(&PinCfg);//sw4
 }
 
 void startInit(void){
-	int8_t x = 0, y = 0, z = 0;
+	x = 0;
+	y = 0;
+	z = 0;
 
     init_i2c();
     init_ssp();
@@ -484,7 +486,7 @@ void oled_update (void){
 }
 
 void oled_DATE_label (void){
-	uint8_t str_passive[15] = {"MODE: DATE"};
+	uint8_t str_date[15] = {"MODE: DATE"};
 	uint8_t str_label_temp[15] = {"TEMP:"};
 	uint8_t str_label_lux[15] = {"LUX:"};
 	uint8_t str_label_ax[15] = {"AX:"};
@@ -496,7 +498,7 @@ void oled_DATE_label (void){
 	uint8_t str_value_ay[15] = {"DATE MODE"};
 	uint8_t str_value_az[15] = {"DATE MODE"};
 
-	oled_putString(2, 1, (uint8_t*)str_passive, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(2, 1, (uint8_t*)str_date, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(2, 11, (uint8_t*)str_label_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(2, 21, (uint8_t*)str_label_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(2, 31, (uint8_t*)str_label_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
@@ -819,14 +821,18 @@ void rgbBlink(void) {
 //=============================
 void PASSIVE_MODE (void){
 	uint8_t btn = 0;
+	uint8_t date_impending[3] = {};
 
 	mode = 0;
+	on_red = 0;
+	on_blue = 0;			//initialise onblink values
 	if(clear_date_label){
 		oled_value_clear();
 		clear_date_label = 0;
 	}
 	oled_PASSIVE_label();		//print labels and first update of values
 	oled_update();
+	led7seg_setChar(0x24,TRUE); 	//set the 7seg to 0
 	rgbTime = getMsTick();
 	led7segTime = getMsTick();		// set timer = current time
 	while(1){
@@ -838,6 +844,7 @@ void PASSIVE_MODE (void){
 			if((l<50)&&(on_red==0)){		//conditions for which color to blink
 				on_red = 1;
 				on_blue = 1;
+				blue_flag = 0;			//view blue as off to on when blinkInvert is called
 				rgbBlink();				//call blink to synchronize
 			}
 			if((l>=50)&&(l<=1000)&&(on_blue==0)){		//conditions for which color to blink
@@ -850,9 +857,13 @@ void PASSIVE_MODE (void){
 		btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
 		if(btn==0){
 			end_PASSIVE_button = 1;
+			sprintf(date_impending,"(D)");			//show a D when button pressed so will know it will change to date soon
+			oled_putString(80, 1, (uint8_t*)date_impending, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 		}
 		if(change_mode){
 			change_mode = 0;
+			sprintf(date_impending,"   ");			//clear the D
+			oled_putString(80, 1, (uint8_t*)date_impending, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 			break;
 		}
 	}

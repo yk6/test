@@ -22,10 +22,6 @@
 #define PASSIVE 1
 #define DATE 2
 
-//typedef enum {					// use enum or use a function as a whole?
-//	PASSIVE =0X00,
-//	DATE,
-//} MODE;
 
 int8_t xoff = 0;					//initial accelerometer calibration values
 int8_t yoff = 0;
@@ -41,7 +37,7 @@ uint32_t mode = 0;
 
 //	clock variables
 volatile uint32_t msTick = 0;		// ms clock
-volatile uint32_t usTick = 0;		// 10µs
+volatile uint32_t usTick = 0;		// 1µs
 
 uint32_t led7segTime = 0;			//time of the 7 seg
 uint8_t led7segCount = 0;			//current number displayed on 7seg
@@ -106,13 +102,13 @@ void oled_PASSIVE_label (void);
 void readTemp(void);
 /* changed temp.c
 
-#define NUM_HALF_PERIODS 20
+#define NUM_HALF_PERIODS 30
 
-return ( (2*10*t2) / (NUM_HALF_PERIODS*TEMP_SCALAR_DIV10) - 2731 );
+return ( (2*10*t2) / (NUM_HALF_PERIODS*TEMP_SCALAR_DIV10) - 27315 );
 
 */
 void readLight(void);
-void calibrateAcc(void);
+void calibrateAcc(int8_t xx, int8_t yy, int8_t zz);
 
 //=============================
 //		LED 7 SEGMENT
@@ -144,7 +140,8 @@ void DATE_MODE(void);
 void pinsel_uart3(void);
 void init_uart(void);
 void send_UartData(void);
-
+void computeState(void);
+void clearUartBuf(void);
 
 //==============================
 //		MATH FUNCTION
@@ -158,7 +155,7 @@ int main (void) {
 	uint8_t btn = 0;
 	uint8_t start_condition = 0;			//for sw2
 
-	SysTick_Config(SystemCoreClock/100000);	//interrupt
+	SysTick_Config(SystemCoreClock/1000000);	//interrupt at 1µｓ
 
 	startInit();
 
@@ -187,7 +184,7 @@ int main (void) {
 			PASSIVE_MODE();
 			DATE_MODE();
 		}
-///
+
 
 
 
@@ -296,9 +293,7 @@ PINSEL_ConfigPin(&PinCfg);//sw4
 }
 
 void startInit(void){
-	x = 0;
-	y = 0;
-	z = 0;
+	int8_t xx = 0, yy = 0, zz = 0;
 
     init_i2c();
     init_ssp();
@@ -314,7 +309,7 @@ void startInit(void){
     light_setRange(LIGHT_RANGE_4000);
     init_uart();
 
-	calibrateAcc();			// start up calibration of accelerometer
+	calibrateAcc(xx,yy,zz);					// start up calibration of accelerometer
 	rgbInit();
 
 	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
@@ -349,7 +344,7 @@ uint32_t getUsTick(void) {
 
 void SysTick_Handler(void){     	// SysTick interrupt Handler.
 	usTick++;
-	if(usTick%100==0){
+	if(usTick%1000==0){
 		msTick++;
 	}
 }
@@ -378,17 +373,20 @@ void oled_update (void){
 	uint8_t str_value_ay[15] = {};
 	uint8_t str_value_az[15] = {};
 
-	calibrateAcc();
+	acc_read(&x,&y,&z);
+	x = x+xoff;
+	y = y+yoff;
+	z = z+zoff;
 	readLight();
 	readTemp();
 
-	sprintf(str_value_temp,"%f",t);
+	sprintf(str_value_temp,"%2.2lf",t);
 	sprintf(str_value_lux,"%d",l);
-	sprintf(str_value_ax,"%d",xoff);
-	sprintf(str_value_ay,"%d",yoff);
-	sprintf(str_value_az,"%d",zoff);
+	sprintf(str_value_ax,"%d",x);
+	sprintf(str_value_ay,"%d",y);
+	sprintf(str_value_az,"%d",z);
 
-	str_value_temp[4] = '\0';
+	str_value_temp[5] = '\0';
 
 	if(l<1000){
 		str_value_lux[3]=' ';				//make sure it is displayed right
@@ -400,38 +398,38 @@ void oled_update (void){
 		}
 	}
 
-	if(xoff > 99){
+	if(x > 99){
 		str_value_ax[3] = ' ';									//100-128
 	}
-	if((xoff > -10 && xoff < 0)||(xoff > 9 && xoff < 100)){		//-9to-1, 10-99
+	if((x > -10 && x < 0)||(x > 9 && x < 100)){		//-9to-1, 10-99
 		str_value_ax[2] = ' ';
 		str_value_ax[3] = ' ';
 	}
-	if((xoff > -1)&&(xoff < 10)){								//0-9
+	if((x > -1)&&(x < 10)){								//0-9
 		str_value_ax[1] = ' ';
 		str_value_ax[2] = ' ';
 		str_value_ax[3] = ' ';
 	}
-	if(yoff > 99){
+	if(y > 99){
 		str_value_ay[3] = ' ';									//100-128
 	}
-	if((yoff > -10 && yoff < 0)||(yoff > 9 && yoff < 100)){		//-9to-1, 10-99
+	if((y > -10 && y < 0)||(y > 9 && y < 100)){		//-9to-1, 10-99
 		str_value_ay[2] = ' ';
 		str_value_ay[3] = ' ';
 	}
-	if((yoff > -1)&&(yoff < 10)){								//0-9
+	if((y > -1)&&(y < 10)){								//0-9
 		str_value_ay[1] = ' ';
 		str_value_ay[2] = ' ';
 		str_value_ay[3] = ' ';
 	}
-	if(zoff > 99){
+	if(z > 99){
 		str_value_az[3] = ' ';									//100-128
 	}
-	if((zoff > -10 && zoff < 0)||(zoff > 9 && zoff < 100)){		//-9to-1, 10-99
+	if((z > -10 && z < 0)||(z > 9 && z < 100)){		//-9to-1, 10-99
 		str_value_az[2] = ' ';
 		str_value_az[3] = ' ';
 	}
-	if((zoff > -1)&&(zoff < 10)){								//0-9
+	if((z > -1)&&(z < 10)){								//0-9
 		str_value_az[1] = ' ';
 		str_value_az[2] = ' ';
 		str_value_az[3] = ' ';
@@ -498,20 +496,19 @@ void oled_PASSIVE_label (void){
 //		SENSORS
 //=============================
 void readTemp(void){
-	t = temp_read()/10.0;
+	t = temp_read()/100.0;
 }
 
 void readLight(void){
 	l = light_read();
 }
 
-void calibrateAcc(void) {
-	acc_read(&x,&y,&z);
-	xoff = 0-x;
-	yoff = 0-y;
-	zoff = 0-z;
+void calibrateAcc(int8_t xx, int8_t yy, int8_t zz) {
+	acc_read(&xx,&yy,&zz);
+	xoff = 0-xx;
+	yoff = 0-yy;
+	zoff = 64-zz;
 }
-
 
 
 
@@ -605,6 +602,17 @@ void led7segTimer (void) {
 				}
 //				led7seg_setChar('F',FALSE);
 				led7seg_setChar(0xAA,TRUE);
+				if (on_blue == 1) {
+					clearUartBuf();
+					sprintf(uart_transmit, "Algae was Detected.\r\n");
+					send_UartData();
+				}
+				if (on_red == 1) {
+					clearUartBuf();
+					sprintf(uart_transmit, "Solid Wastes was Detected.\r\n");
+					send_UartData();
+				}
+				computeState();
 				send_UartData();
 				update_request = 1;
 				break;
@@ -785,31 +793,35 @@ void PASSIVE_MODE (void){
 	uint8_t btn = 0;
 	uint8_t date_impending[3] = {};
 
+	clearUartBuf();
+	sprintf(uart_transmit, "Entering PASSIVE Mode.\r\n");
+	send_UartData();
+	clearUartBuf();
 	mode = 0;
 	on_red = 0;
-	on_blue = 0;			//initialise onblink values
+	on_blue = 0;									//initialise onblink values
 	if(clear_date_label){
 		oled_value_clear();
 		clear_date_label = 0;
 	}
-	oled_PASSIVE_label();		//print labels and first update of values
+	oled_PASSIVE_label();							//print labels and first update of values
 	oled_update();
-	led7seg_setChar(0x24,TRUE); 	//set the 7seg to 0
+	led7seg_setChar(0x24,TRUE); 					//set the 7seg to 0
 	rgbTime = getMsTick();
-	led7segTime = getMsTick();		// set timer = current time
+	led7segTime = getMsTick();						// set timer = current time
 	while(1){
-		rgbBlink();				//call blink outside if condition to ensure constant blinking
-		led7segTimer();			//turn on the 7segtimer
-		if(update_request){		//update_request happens at 5,A,F
+		rgbBlink();									//call blink outside if condition to ensure constant blinking
+		led7segTimer();								//start the 7segtimer
+		if(update_request){							//update_request happens at 5,A,F
 			oled_update();
 			update_request = 0;
-			if((l<50)&&(on_red==0)){		//conditions for which color to blink
+			if((l<50)&&(on_red==0)){				//conditions for which color to blink
 				on_red = 1;
 				on_blue = 1;
-				blue_flag = 0;			//view blue as off to on when blinkInvert is called
-				rgbBlink();				//call blink to synchronize
+				blue_flag = 0;						//view blue as off to on when blinkInvert is called
+				rgbBlink();							//call blink to synchronize
 			}
-			if((l>=50)&&(l<=1000)&&(on_blue==0)){		//conditions for which color to blink
+			if((l>=50)&&(l<=1000)&&(on_blue==0)){	//conditions for which color to blink
 				on_blue = 1;
 			}
 		}
@@ -834,6 +846,10 @@ void PASSIVE_MODE (void){
 
 void DATE_MODE(void){
 	mode = 1;
+
+	clearUartBuf();
+	sprintf(uart_transmit, "Leaving PASSIVE Mode. Entering DATE Mode.\r\n");
+	send_UartData();
 	rgb_off();
 	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
 	oled_DATE_label();
@@ -848,6 +864,8 @@ void DATE_MODE(void){
 				clear_date_label = 0;
 			}
 			oled_update();
+			computeState();
+			send_UartData();
 			update_request = 0;
 		}
 		if(end_DATE){
@@ -895,8 +913,19 @@ void init_uart(void) {
 }
 
 void send_UartData(void) {
-	sprintf(uart_transmit, "%03d_-_T %.1lf_L %4d_AX  %3d_AY  %3d_AZ  %3d_\r\n", transmit_count, t, l, x, y, z);
 	UART_Send(LPC_UART3, (uint8_t *)uart_transmit, strlen(uart_transmit), BLOCKING);
+}
+
+void computeState(void) {
+	sprintf(uart_transmit, "%03d_-_T%2.2lf_L%4d_AX%d_AY%d_AZ%d\r\n", transmit_count, t, l, x, y, z);
 	transmit_count++;
+}
+
+void clearUartBuf(void) {
+	int i, len;
+	len = strlen(uart_transmit);
+	for (i=0; i<len; i++) {
+		uart_transmit[i] = 0;
+	}
 }
 

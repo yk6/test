@@ -101,6 +101,84 @@ void uart(void) {
 }
 //================================================================================
 
+static void init_timer0(void)
+{
+	LPC_SC->PCONP |= (1 << 1);
+	LPC_SC->PCLKSEL0 |= 0b01 << 2;
+	LPC_TIM0->TCR = 1;
+	LPC_TIM0->MR0 = (SystemCoreClock/(1));
+	LPC_TIM0->MCR |= 1 << 0;
+	LPC_TIM0->MCR |= 1 << 1;
+}
+
+void TIMER0_IRQHandler(void)
+{
+	if((LPC_TIM0-> IR >> 0) & 0x1)
+	{
+		timerCount++;
+		ledTrigger = true;
+		if(timerCount%2 == 0) {
+			sensorTrigger = true;
+		}
+		LPC_TIM0-> IR |= 1;
+	}
+}
+
+void UART3_IRQHandler(void) {
+	uint8_t data;
+	//Receive one letter
+	UART_Receive(LPC_UART3, &data, 1, BLOCKING);
+
+	// Insert letter into string buffer
+	if (data!='\r')
+	{
+		line[len] = data;
+		len++;
+	}
+	// Indicate string received (i.e. user pressed [ENTER] or exceeded 23 letters
+	if (!sleep && ((len>=23) || (data == '\r'))) {
+		UART_Receive(LPC_UART3, &data, 1, BLOCKING); // get rid of '\n' character
+		line[len]=0;
+		UART_message_received = true;
+		// Disable UART3 INT
+
+		NVIC_DisableIRQ(UART3_IRQn);
+	}
+	NVIC_ClearPendingIRQ(UART3_IRQn);
+}
+
+void printUARTmessage() {
+	if (line[0] == 'S' && line[1] == 'L' && line[2] == 'E' && line[3] == 'E' && line[4] == 'P' && len == 5) {
+		// Set SLEEP display
+		oled_clearScreen(OLED_COLOR_BLACK);
+		sprintf(value, "     SLEEP       ");
+		oled_putString(1, 30, value, OLED_COLOR_BLACK, OLED_COLOR_WHITE);
+
+		// wait for new data
+		sleep = true;
+		NVIC_ClearPendingIRQ(UART3_IRQn);
+		NVIC_EnableIRQ(UART3_IRQn);
+		while(len==5);
+
+		oled_clearScreen(OLED_COLOR_BLACK);
+	} else {
+		sprintf(value, "                %s                ", line);
+		oled_putString(1, 50, value+pos, OLED_COLOR_BLACK, OLED_COLOR_WHITE);
+		++pos;
+	}
+
+	if(pos >= len+16 || sleep) {
+		sprintf(value, "                     ", line);
+		oled_putString(1, 50, value, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+		UART_message_received = false;
+		pos = 0;
+		len = 0;
+		sleep = FALSE;
+		// Enable UART3 INT
+		NVIC_ClearPendingIRQ(UART3_IRQn);
+		NVIC_EnableIRQ(UART3_IRQn);
+	}
+}
 
 
 

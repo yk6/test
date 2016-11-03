@@ -36,10 +36,10 @@ uint32_t l = 0;
 uint32_t mode = 0;
 
 //	clock variables
-volatile uint32_t msTick = 0;		// ms clock
+volatile uint32_t msTick = 0;		// 1ms clock
 volatile uint32_t usTick = 0;		// 1µs
 
-uint32_t led7segTime = 0;			//time of the 7 seg
+volatile uint32_t led7segTime = 0;			//time of the 7 seg
 uint8_t led7segCount = 0;			//current number displayed on 7seg
 
 uint32_t end_PASSIVE_button = 0;	// flag for end of passive
@@ -50,24 +50,16 @@ uint32_t update_request = 0;		// 7seg update at 5,A,F
 uint32_t end_DATE = 0;				//end of date flag
 uint32_t clear_date_label = 0;
 
-uint16_t ledOn = 0;					//time counters
-uint32_t indicatorTime = 0;
-uint32_t rgbTime = 0;
+volatile uint32_t indicatorTime = 0;//time counters
+volatile uint32_t rgbTime = 0;
 
 uint8_t on_red = 0;					// flag control for rgb
 uint8_t on_blue = 0;
 
 uint8_t blue_flag = 0;				// status flag for rgb blue
 
-uint8_t uart_transmit0[10];			// uart
-uint8_t uart_transmit1[10];
-uint8_t uart_transmit2[10];
-uint8_t uart_transmit3[10];
-uint8_t uart_transmit4[10];
-uint8_t uart_transmit5[10];
-uint8_t uart_transmit[100];
-
-uint32_t transmit_count = 0;
+uint8_t uart_transmit[100];// UART
+volatile uint32_t transmit_count = 0;
 
 
 //============================
@@ -168,7 +160,6 @@ int main (void) {
     while (1)
     {
 //========================================================
-
 
 
 //========================================================
@@ -359,14 +350,17 @@ void SysTick_Handler(void){     	// SysTick interrupt Handler.
 
 
 void oled_value_clear (void){
+	printf("oled clear: %u\n",msTick);
 	oled_putString(32, 11, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(32, 21, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(32, 31, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(32, 41, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(32, 51, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	printf("after: %u\n",msTick);
 }
 
 void oled_update (void){
+	printf("oled update: %u\n",msTick);
 	uint8_t str_value_temp[15] = {};
 	uint8_t str_value_lux[15] = {};
 	uint8_t str_value_ax[15] = {};
@@ -440,7 +434,7 @@ void oled_update (void){
 	oled_putString(32, 31, (uint8_t*)str_value_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(32, 41, (uint8_t*)str_value_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(32, 51, (uint8_t*)str_value_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
+	printf("after update: %u\n",msTick);
 }
 
 void oled_DATE_label (void){
@@ -698,10 +692,10 @@ void energy (void) {
 	time_diff = getMsTick() - indicatorTime;
 	if (time_diff >= INDICATOR_TIME_UNIT) {
 		ledOn>>=1;
-		pca9532_setLeds(ledOn,0xffff);
 		time_diff = time_diff - INDICATOR_TIME_UNIT;			//excess time
 		indicatorTime = getMsTick() - time_diff;
 	}
+	pca9532_setLeds(ledOn,0xffff);
 	if(ledOn == 0){
 		end_DATE = 1;
 		ledOn = 0xffff;

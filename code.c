@@ -41,6 +41,7 @@ volatile uint32_t usTick = 0;		// 1µs
 
 volatile uint32_t led7segTime = 0;			//time of the 7 seg
 uint8_t led7segCount = 0;			//current number displayed on 7seg
+uint8_t invert_7seg = 0;
 
 uint32_t end_PASSIVE_button = 0;	// flag for end of passive
 uint32_t end_PASSIVE = 0;			// end of passive
@@ -106,7 +107,6 @@ void calibrateAcc(int8_t xx, int8_t yy, int8_t zz);
 //		LED 7 SEGMENT
 //=============================
 void led7segTimer (void);
-void invert7seg(void);
 //=============================
 //		ENERGY INDICATOR
 //=============================
@@ -323,6 +323,12 @@ void EINT3_IRQHandler(void){
 		}
 		LPC_GPIOINT->IO2IntClr = 1<<10;
 	}
+	if((LPC_GPIOINT->IO0IntStatF >> 17)& 0x1){		//joystick interrupt handler
+		if(!mode){
+			invert_7seg = !invert_7seg;
+		}
+		LPC_GPIOINT->IO0IntClr = 1<<17;
+	}
 }
 
 uint32_t getMsTick(void){
@@ -351,11 +357,7 @@ void SysTick_Handler(void){     	// SysTick interrupt Handler.
 
 void oled_value_clear (void){
 	printf("oled clear: %u\n",msTick);
-	oled_putString(32, 11, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 21, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 31, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 41, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 51, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_fillRect(32, 11, 96, 64, OLED_COLOR_BLACK);
 	printf("after: %u\n",msTick);
 }
 
@@ -375,59 +377,10 @@ void oled_update (void){
 	readTemp();
 
 	sprintf(str_value_temp,"%2.2lf",t);
-	sprintf(str_value_lux,"%d",l);
-	sprintf(str_value_ax,"%d",x);
-	sprintf(str_value_ay,"%d",y);
-	sprintf(str_value_az,"%d",z);
-
-	str_value_temp[5] = '\0';
-
-	if(l<1000){
-		str_value_lux[3]=' ';				//make sure it is displayed right
-		if(l<100){
-			str_value_lux[2]=' ';
-			if(l<10){
-				str_value_lux[1]=' ';
-			}
-		}
-	}
-
-	if(x > 99){
-		str_value_ax[3] = ' ';									//100-128
-	}
-	if((x > -10 && x < 0)||(x > 9 && x < 100)){		//-9to-1, 10-99
-		str_value_ax[2] = ' ';
-		str_value_ax[3] = ' ';
-	}
-	if((x > -1)&&(x < 10)){								//0-9
-		str_value_ax[1] = ' ';
-		str_value_ax[2] = ' ';
-		str_value_ax[3] = ' ';
-	}
-	if(y > 99){
-		str_value_ay[3] = ' ';									//100-128
-	}
-	if((y > -10 && y < 0)||(y > 9 && y < 100)){		//-9to-1, 10-99
-		str_value_ay[2] = ' ';
-		str_value_ay[3] = ' ';
-	}
-	if((y > -1)&&(y < 10)){								//0-9
-		str_value_ay[1] = ' ';
-		str_value_ay[2] = ' ';
-		str_value_ay[3] = ' ';
-	}
-	if(z > 99){
-		str_value_az[3] = ' ';									//100-128
-	}
-	if((z > -10 && z < 0)||(z > 9 && z < 100)){		//-9to-1, 10-99
-		str_value_az[2] = ' ';
-		str_value_az[3] = ' ';
-	}
-	if((z > -1)&&(z < 10)){								//0-9
-		str_value_az[1] = ' ';
-		str_value_az[2] = ' ';
-		str_value_az[3] = ' ';
-	}
+	sprintf(str_value_lux,"%4d",l);
+	sprintf(str_value_ax,"%4d",x);
+	sprintf(str_value_ay,"%4d",y);
+	sprintf(str_value_az,"%4d",z);
 
 	oled_putString(32, 11, (uint8_t*)str_value_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(32, 21, (uint8_t*)str_value_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
@@ -522,161 +475,165 @@ void led7segTimer (void) {
 		if (led7segCount == 16){
 			led7segCount = 0;
 		}
-		switch (led7segCount) {
-			case 0:
-				if (end_PASSIVE == 1) {
-					change_mode = 1;
-					end_PASSIVE = 0;
-				}
-//				led7seg_setChar('0',FALSE);
-				led7seg_setChar(0x24,TRUE);
-				break;
-			case 1:
-//				led7seg_setChar('1',FALSE);
-				led7seg_setChar(0x7D,TRUE);
-				break;
-			case 2:
-//				led7seg_setChar('2',FALSE);
-				led7seg_setChar(0xE0,TRUE);
-				break;
-			case 3:
-//				led7seg_setChar('3',FALSE);
-				led7seg_setChar(0x70,TRUE);
-				break;
-			case 4:
-//				led7seg_setChar('4',FALSE);
-				led7seg_setChar(0x39,TRUE);
-				break;
-			case 5:
-//				led7seg_setChar('5',FALSE);
-				led7seg_setChar(0x32,TRUE);
-				update_request = 1;
-				break;
-			case 6:
-//				led7seg_setChar('6',FALSE);
-				led7seg_setChar(0x22,TRUE);
-				break;
-			case 7:
-//				led7seg_setChar('7',FALSE);
-				led7seg_setChar(0x7C,TRUE);
-				break;
-			case 8:
-//				led7seg_setChar('8',FALSE);
-				led7seg_setChar(0x20,TRUE);
-				break;
-			case 9:
-//				led7seg_setChar('9',FALSE);
-				led7seg_setChar(0x30,TRUE);
-				break;
-			case 10:
-//				led7seg_setChar('A',FALSE);
-				led7seg_setChar(0x28,TRUE);
-				update_request = 1;
-				break;
-			case 11:
-//				led7seg_setChar('8',FALSE);
-				led7seg_setChar(0x20,TRUE);
-				break;
-			case 12:
-//				led7seg_setChar('C',FALSE);
-				led7seg_setChar(0xA6,TRUE);
-				break;
-			case 13:
-//				led7seg_setChar('0',FALSE);
-				led7seg_setChar(0x24,TRUE);
-				break;
-			case 14:
-//				led7seg_setChar('E',FALSE);
-				led7seg_setChar(0xA2,TRUE);
-				break;
-			case 15:
-				if(end_PASSIVE_button){				// condition fulfilled if button pressed before F shows up
-					end_PASSIVE = 1;
-					end_PASSIVE_button = 0;
-				}
-//				led7seg_setChar('F',FALSE);
-				led7seg_setChar(0xAA,TRUE);
-				if (on_blue == 1) {
-					clearUartBuf();
-					sprintf(uart_transmit, "Algae was Detected.\r\n");
+		if(invert_7seg){
+			switch (led7segCount) {
+				case 0:
+					if (end_PASSIVE == 1) {
+						change_mode = 1;
+						end_PASSIVE = 0;
+					}
+					led7seg_setChar(0x24,TRUE);
+					break;
+				case 1:
+					led7seg_setChar(0x7D,TRUE);
+					break;
+				case 2:
+					led7seg_setChar(0xE0,TRUE);
+					break;
+				case 3:
+					led7seg_setChar(0x70,TRUE);
+					break;
+				case 4:
+					led7seg_setChar(0x39,TRUE);
+					break;
+				case 5:
+					led7seg_setChar(0x32,TRUE);
+					update_request = 1;
+					break;
+				case 6:
+					led7seg_setChar(0x22,TRUE);
+					break;
+				case 7:
+					led7seg_setChar(0x7C,TRUE);
+					break;
+				case 8:
+					led7seg_setChar(0x20,TRUE);
+					break;
+				case 9:
+					led7seg_setChar(0x30,TRUE);
+					break;
+				case 10:
+					led7seg_setChar(0x28,TRUE);
+					update_request = 1;
+					break;
+				case 11:
+					led7seg_setChar(0x20,TRUE);
+					break;
+				case 12:
+					led7seg_setChar(0xA6,TRUE);
+					break;
+				case 13:
+					led7seg_setChar(0x24,TRUE);
+					break;
+				case 14:
+					led7seg_setChar(0xA2,TRUE);
+					break;
+				case 15:
+					if(end_PASSIVE_button){				// condition fulfilled if button pressed before F shows up
+						end_PASSIVE = 1;
+						end_PASSIVE_button = 0;
+					}
+					led7seg_setChar(0xAA,TRUE);
+					if (on_blue == 1) {
+						clearUartBuf();
+						sprintf(uart_transmit, "Algae was Detected.\r\n");
+						send_UartData();
+					}
+					if (on_red == 1) {
+						clearUartBuf();
+						sprintf(uart_transmit, "Solid Wastes was Detected.\r\n");
+						send_UartData();
+					}
+					computeState();
 					send_UartData();
-				}
-				if (on_red == 1) {
-					clearUartBuf();
-					sprintf(uart_transmit, "Solid Wastes was Detected.\r\n");
+					update_request = 1;
+					break;
+				default:
+					led7seg_setChar('*',FALSE);
+					break;
+			}
+		}else{
+			switch (led7segCount) {
+				case 0:
+					if (end_PASSIVE == 1) {
+						change_mode = 1;
+						end_PASSIVE = 0;
+					}
+					led7seg_setChar(0x24,TRUE);
+					break;
+				case 1:
+					led7seg_setChar('1',FALSE);
+					break;
+				case 2:
+					led7seg_setChar('2',FALSE);
+					break;
+				case 3:
+					led7seg_setChar('3',FALSE);
+					break;
+				case 4:
+					led7seg_setChar('4',FALSE);
+					break;
+				case 5:
+					led7seg_setChar('5',FALSE);
+					update_request = 1;
+					break;
+				case 6:
+					led7seg_setChar('6',FALSE);
+					break;
+				case 7:
+					led7seg_setChar('7',FALSE);
+					break;
+				case 8:
+					led7seg_setChar('8',FALSE);
+					break;
+				case 9:
+					led7seg_setChar('9',FALSE);
+					break;
+				case 10:
+					led7seg_setChar('A',FALSE);
+					update_request = 1;
+					break;
+				case 11:
+					led7seg_setChar('8',FALSE);
+					break;
+				case 12:
+					led7seg_setChar('C',FALSE);
+					break;
+				case 13:
+					led7seg_setChar('0',FALSE);
+					break;
+				case 14:
+					led7seg_setChar('E',FALSE);
+					break;
+				case 15:
+					if(end_PASSIVE_button){				// condition fulfilled if button pressed before F shows up
+						end_PASSIVE = 1;
+						end_PASSIVE_button = 0;
+					}
+					led7seg_setChar('F',FALSE);
+					if (on_blue == 1) {
+						clearUartBuf();
+						sprintf(uart_transmit, "Algae was Detected.\r\n");
+						send_UartData();
+					}
+					if (on_red == 1) {
+						clearUartBuf();
+						sprintf(uart_transmit, "Solid Wastes was Detected.\r\n");
+						send_UartData();
+					}
+					computeState();
 					send_UartData();
-				}
-				computeState();
-				send_UartData();
-				update_request = 1;
-				break;
-			default:
-				led7seg_setChar('*',FALSE);
-				break;
+					update_request = 1;
+					break;
+				default:
+					led7seg_setChar('*',FALSE);
+					break;
+			}
+
 		}
 	}
 }
 
-void invert7seg(void) {
-	if (getMsTick() - led7segTime>= SEGMENT_DISPLAY_TIME) {
-		led7segTime=getMsTick();
-		if(led7segCount==16) {
-			led7segCount=0;
-		}
-		switch(led7segCount) {
-			case 0:
-				led7seg_setChar(0x24,TRUE);
-				break;
-			case 1:
-				led7seg_setChar(0x7D,TRUE);
-				break;
-			case 2:
-				led7seg_setChar(0xE0,TRUE);
-				break;
-			case 3:
-				led7seg_setChar(0x70,TRUE);
-				break;
-			case 4:
-				led7seg_setChar(0x39,TRUE);
-				break;
-			case 5:
-				led7seg_setChar(0x32,TRUE);
-				break;
-			case 6:
-				led7seg_setChar(0x22,TRUE);
-				break;
-			case 7:
-				led7seg_setChar(0x7C,TRUE);
-				break;
-			case 8:
-				led7seg_setChar(0x20,TRUE);
-				break;
-			case 9:
-				led7seg_setChar(0x30,TRUE);
-				break;
-			case 10:
-				led7seg_setChar(0x28,TRUE);
-				break;
-			case 11:
-				led7seg_setChar(0x20,TRUE);
-				break;
-			case 12:
-				led7seg_setChar(0xA6,TRUE);
-				break;
-			case 13:
-				led7seg_setChar(0x24,TRUE);
-				break;
-			case 14:
-				led7seg_setChar(0xA2,TRUE);
-				break;
-			case 15:
-				led7seg_setChar(0xAA,TRUE);
-				break;
-			default:;
-		}
-		led7segCount++;
-	}
-}
 
 
 
@@ -792,6 +749,7 @@ void PASSIVE_MODE (void){
 	send_UartData();
 	clearUartBuf();
 	mode = 0;
+	invert_7seg = 0;
 	on_red = 0;
 	on_blue = 0;									//initialise onblink values
 	if(clear_date_label){

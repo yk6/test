@@ -151,6 +151,7 @@ int main (void) {
 
 	startInit();
 
+	NVIC_EnableIRQ(EINT3_IRQn);					//enable interrupt
 	NVIC_SetPriorityGrouping(5);			//priority setting for interrupt sw3
 	NVIC_SetPriority(EINT3_IRQn, 0x18);		// 24 in DEC
 
@@ -809,7 +810,6 @@ void DATE_MODE(void){
 	while(1){
 		energy();
 		LPC_GPIOINT->IO2IntEnF |= 1<<10;
-		NVIC_EnableIRQ(EINT3_IRQn);					//enable interrupt
 		if(update_request){
 			if(clear_date_label){
 				oled_value_clear();

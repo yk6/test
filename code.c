@@ -88,6 +88,7 @@ void oled_value_clear (void);
 void oled_update (void);
 void oled_DATE_label (void);
 void oled_PASSIVE_label (void);
+void oled_labels(void);
 
 //=============================
 //		SENSORS
@@ -228,7 +229,7 @@ static void init_ssp(void)
 	PINSEL_ConfigPin(&PinCfg);
 
 	SSP_ConfigStructInit(&SSP_ConfigStruct);
-
+	SSP_ConfigStruct.ClockRate = 20000000;	//20Mhz
 
 	// Initialize SSP peripheral with parameter given in structure above
 	SSP_Init(LPC_SSP1, &SSP_ConfigStruct);
@@ -357,13 +358,27 @@ void SysTick_Handler(void){     	// SysTick interrupt Handler.
 
 
 void oled_value_clear (void){
-	printf("oled clear: %u\n",msTick);
-	oled_fillRect(32, 11, 96, 64, OLED_COLOR_BLACK);
-	printf("after: %u\n",msTick);
+	uint8_t space[5] = "    ";
+	uint8_t space1[6] = "     ";
+	uint8_t space2[7] = "       ";
+
+	uint32_t before = getMsTick();
+
+//	12ms
+//	oled_clearScreen(OLED_COLOR_BLACK);
+
+	//TODO
+//	250ms
+	oled_putString(63, 16, (uint8_t*)space, OLED_COLOR_BLACK, OLED_COLOR_BLACK);
+	oled_putString(55, 24, (uint8_t*)space1, OLED_COLOR_BLACK, OLED_COLOR_BLACK);
+	oled_putString(47, 32, (uint8_t*)space2, OLED_COLOR_BLACK, OLED_COLOR_BLACK);
+	oled_putString(47, 40, (uint8_t*)space2, OLED_COLOR_BLACK, OLED_COLOR_BLACK);
+	oled_putString(47, 48, (uint8_t*)space2, OLED_COLOR_BLACK, OLED_COLOR_BLACK);
+	printf("clear: %u\n",msTick - before);
 }
 
 void oled_update (void){
-	printf("oled update: %u\n",msTick);
+	uint32_t before = msTick;
 	uint8_t str_value_temp[15] = {};
 	uint8_t str_value_lux[15] = {};
 	uint8_t str_value_ax[15] = {};
@@ -376,64 +391,62 @@ void oled_update (void){
 	z = z+zoff;
 	readLight();
 	readTemp();
+	//50ms
 
 	sprintf(str_value_temp,"%2.2lf",t);
 	sprintf(str_value_lux,"%4d",l);
-	sprintf(str_value_ax,"%4d",x);
-	sprintf(str_value_ay,"%4d",y);
-	sprintf(str_value_az,"%4d",z);
+	sprintf(str_value_ax,"%3d",x);
+	sprintf(str_value_ay,"%3d",y);
+	sprintf(str_value_az,"%3d",z);
 
-	oled_putString(32, 11, (uint8_t*)str_value_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 21, (uint8_t*)str_value_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 31, (uint8_t*)str_value_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 41, (uint8_t*)str_value_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 51, (uint8_t*)str_value_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	printf("after update: %u\n",msTick);
+	oled_putString(16, 16, (uint8_t*)str_value_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(16, 24, (uint8_t*)str_value_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(16, 32, (uint8_t*)str_value_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(16, 40, (uint8_t*)str_value_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(16, 48, (uint8_t*)str_value_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	printf("update: %u\n",msTick - before);
 }
 
 void oled_DATE_label (void){
+	uint32_t time = msTick;
 	uint8_t str_date[15] = {"MODE:DATE"};
-	uint8_t str_label_temp[15] = {"TEMP:"};
-	uint8_t str_label_lux[15] = {"LUX:"};
-	uint8_t str_label_ax[15] = {"AX:"};
-	uint8_t str_label_ay[15] = {"AY:"};
-	uint8_t str_label_az[15] = {"AZ:"};
 	uint8_t str_value_temp[15] = {"DATE MODE"};
 	uint8_t str_value_lux[15] = {"DATE MODE"};
 	uint8_t str_value_ax[15] = {"DATE MODE"};
 	uint8_t str_value_ay[15] = {"DATE MODE"};
 	uint8_t str_value_az[15] = {"DATE MODE"};
 
-	oled_clearScreen(OLED_COLOR_BLACK);
-	oled_putString(2, 1, (uint8_t*)str_date, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(2, 11, (uint8_t*)str_label_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(2, 21, (uint8_t*)str_label_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(2, 31, (uint8_t*)str_label_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(2, 41, (uint8_t*)str_label_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(2, 51, (uint8_t*)str_label_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 11, (uint8_t*)str_value_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 21, (uint8_t*)str_value_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 31, (uint8_t*)str_value_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 41, (uint8_t*)str_value_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(32, 51, (uint8_t*)str_value_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
+	oled_clearScreen(OLED_COLOR_BLACK);		//TODO  change to sth else
+	oled_putString(0, 0, (uint8_t*)str_date, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(24, 16, (uint8_t*)str_value_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(24, 24, (uint8_t*)str_value_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(24, 32, (uint8_t*)str_value_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(24, 40, (uint8_t*)str_value_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(24, 48, (uint8_t*)str_value_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	clear_date_label = 1;
+	printf("date label: %u\n", msTick - time);
 }
 
 void oled_PASSIVE_label (void){
 	uint8_t str_passive[15] = {"MODE:PASSIVE"};
-	uint8_t str_label_temp[15] = {"TEMP:"};
-	uint8_t str_label_lux[15] = {"LUX:"};
+
+	oled_putString(0, 0, (uint8_t*)str_passive, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+}
+
+void oled_labels(void) {
+	uint32_t time = msTick;
+	uint8_t str_label_temp[15] = {"T :"};
+	uint8_t str_label_lux[15] = {"L :"};
 	uint8_t str_label_ax[15] = {"AX:"};
 	uint8_t str_label_ay[15] = {"AY:"};
 	uint8_t str_label_az[15] = {"AZ:"};
 
-	oled_putString(2, 1, (uint8_t*)str_passive, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(2, 11, (uint8_t*)str_label_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(2, 21, (uint8_t*)str_label_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(2, 31, (uint8_t*)str_label_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(2, 41, (uint8_t*)str_label_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(2, 51, (uint8_t*)str_label_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 16, (uint8_t*)str_label_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 24, (uint8_t*)str_label_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 32, (uint8_t*)str_label_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 40, (uint8_t*)str_label_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 48, (uint8_t*)str_label_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	printf("labels: %u\n", msTick - time);
 }
 
 
@@ -757,11 +770,12 @@ void PASSIVE_MODE (void){
 		oled_value_clear();
 		clear_date_label = 0;
 	}
-	oled_PASSIVE_label();							//print labels and first update of values
-	oled_update();
-	led7seg_setChar(0x24,TRUE); 					//set the 7seg to 0
-	rgbTime = getMsTick();
 	led7segTime = getMsTick();						// set timer = current time
+	led7seg_setChar(0x24,TRUE); 					//set the 7seg to 0
+	oled_PASSIVE_label();							//print labels and first update of values
+	oled_labels();
+	oled_update();
+	rgbTime = getMsTick();
 	while(1){
 		rgbBlink();									//call blink outside if condition to ensure constant blinking
 		led7segTimer();								//start the 7segtimer
@@ -799,6 +813,7 @@ void PASSIVE_MODE (void){
 
 void DATE_MODE(void){
 	mode = 1;
+	uint8_t labels = 0;
 
 	clearUartBuf();
 	sprintf(uart_transmit, "Leaving PASSIVE Mode. Entering DATE Mode.\r\n");
@@ -814,6 +829,10 @@ void DATE_MODE(void){
 			if(clear_date_label){
 				oled_value_clear();
 				clear_date_label = 0;
+			}
+			if (labels == 0) {
+				oled_labels();
+				labels = 1;
 			}
 			oled_update();
 			computeState();

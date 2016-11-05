@@ -789,6 +789,9 @@ void PASSIVE_MODE (void){
 	send_UartData();
 	clearUartBuf();
 	mode = 0;
+	update_request = 0;
+	end_PASSIVE_button = 0;
+	end_PASSIVE = 0;
 	invert_7seg = 0;
 	on_red = 0;
 	on_blue = 0;									//initialise onblink values

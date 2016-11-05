@@ -87,6 +87,7 @@ void SysTick_Handler(void);
 void oled_value_clear (void);
 void oled_update (void);
 void oled_DATE_label (void);
+void oled_DATE_label_value (void);
 void oled_PASSIVE_label (void);
 void oled_labels(void);
 

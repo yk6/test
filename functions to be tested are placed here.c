@@ -195,6 +195,18 @@ if (usTick >= 4000000000 && led7segCount == 0) { //4000s   usTick overflow at 42
 	rgbTime = 0;
 }
 
+//===============================================================================
+reset_flag = 0;
+
+if (usTick == 4294967295) {		//	4294967296 = 2^32 ( cuz got 0, so its not 96 but 95 )
+	reset_flag = 1;
+}
+if (reset_flag == 1) {
+	msTick = 0;
+	led7segTime = 0;
+	indicatorTime = 0;
+	rgbTime = 0;
+}
 
 
 //================================================================================

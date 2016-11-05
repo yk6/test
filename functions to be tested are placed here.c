@@ -179,12 +179,21 @@ void printUARTmessage() {
 		NVIC_EnableIRQ(UART3_IRQn);
 	}
 }
+//===============================================================================
+//
+//								TIMER RESET
+//
+//===============================================================================
 
+// inside the systick 
 
-
-
-
-
+if (usTick >= 4000000000 && led7segCount == 0) { //4000s   usTick overflow at 4294s
+	usTick = 0;
+	msTick = 0;
+	led7segTime = 0;
+	indicatorTime = 0;
+	rgbTime = 0;
+}
 
 
 

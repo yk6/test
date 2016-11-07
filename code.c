@@ -23,7 +23,7 @@
 #define DATE 2
 
 
-volatile int8_t xoff = 0;					//initial accelerometer calibration values
+volatile int8_t xoff = 0;						//initial accelerometer calibration values
 volatile int8_t yoff = 0;
 volatile int8_t zoff = 0;
 int8_t x = 0;
@@ -35,32 +35,39 @@ volatile uint32_t l = 0;
 
 volatile uint32_t mode = 0;
 
-//	clock variables
-volatile uint32_t msTick = 0;		// 1ms clock
-volatile uint32_t usTick = 0;		// 1µs
+												//	clock variables
+volatile uint32_t msTick = 0;					// 1ms clock
+volatile uint32_t usTick = 0;					// 1µs
 
-volatile uint32_t led7segTime = 0;			//time of the 7 seg
-volatile uint8_t led7segCount = 0;			//current number displayed on 7seg
+volatile uint32_t led7segTime = 0;				//time of the 7 seg
+volatile uint8_t led7segCount = 0;				//current number displayed on 7seg
 volatile uint8_t invert_7seg = 0;
 
-volatile uint32_t end_PASSIVE_button = 0;	// flag for end of passive
-volatile uint32_t end_PASSIVE = 0;			// end of passive
-volatile uint8_t change_mode = 0;			// the instance when passive switch to date
-volatile uint32_t update_request = 0;		// 7seg update at 5,A,F
+volatile uint32_t end_PASSIVE_button = 0;		// flag for end of passive
+volatile uint32_t end_PASSIVE = 0;				// end of passive
+volatile uint8_t change_mode = 0;				// the instance when passive switch to date
+volatile uint32_t update_request = 0;			// 7seg update at 5,A,F
 
-volatile uint32_t end_DATE = 0;				//end of date flag
+volatile uint32_t end_DATE = 0;					//end of date flag
 volatile uint32_t clear_date_label = 0;
 
-volatile uint32_t indicatorTime = 0;//time counters
+volatile uint32_t indicatorTime = 0;			//time counters
 volatile uint32_t rgbTime = 0;
 
 volatile uint8_t on_red = 0;					// flag control for rgb
 volatile uint8_t on_blue = 0;
 
-volatile uint8_t blue_flag = 0;				// status flag for rgb blue
+volatile uint8_t blue_flag = 0;					//	status flag for rgb blue
+volatile uint8_t red_flag = 0;					//	status flag for rgb red
 
-volatile uint8_t uart_transmit[100];// UART
+volatile uint8_t uart_transmit[100];			// UART
 volatile uint32_t transmit_count = 0;
+volatile uint8_t uart_receive[100];
+volatile uint32_t count = 0;
+volatile uint8_t got_msg = 0;
+
+uint32_t passive_batt_lv = 0;					//	battery
+uint32_t date_batt_lv = 0;
 
 
 //============================
@@ -84,7 +91,6 @@ void SysTick_Handler(void);
 //=============================
 //		OLED FUNCTIONS
 //=============================
-void oled_value_clear (void);
 void oled_update (void);
 void oled_DATE_label (void);
 void oled_DATE_label_value (void);
@@ -136,29 +142,34 @@ void init_uart(void);
 void send_UartData(void);
 void computeState(void);
 void clearUartBuf(void);
+void UART3_IRQHandler(void);
 
-//==============================
-//		MATH FUNCTION
-//==============================
-int round (double x);
+//=============================
+//		BATTERY MODE
+//=============================
 
-//==============================
+
+
 
 
 int main (void) {
 	uint8_t btn = 0;
 	uint8_t falling_edge = 0;
-	uint8_t start_condition = 0;			//for sw2
+	uint8_t start_condition = 0;						//for sw2
 
-	SysTick_Config(SystemCoreClock/1000000);	//interrupt at 1µｓ
+	SysTick_Config(SystemCoreClock/1000000);			//interrupt at 1µｓ
 
 	startInit();
 
-	NVIC_EnableIRQ(EINT3_IRQn);					//enable interrupt
-	NVIC_SetPriorityGrouping(5);			//priority setting for interrupt sw3
-	NVIC_SetPriority(EINT3_IRQn, 0x18);		// 24 in DEC
+	NVIC_EnableIRQ(EINT3_IRQn);							//enable interrupt
+	NVIC_SetPriorityGrouping(5);						//priority setting for interrupt sw3
+	NVIC_SetPriority(EINT3_IRQn, 0x18);					// 24 in DEC
 	LPC_GPIOINT->IO2IntEnF |= 1<<10;
 	LPC_GPIOINT->IO0IntEnF |= 1<<17;
+
+	NVIC_EnableIRQ(UART3_IRQn);							//enable uart interrupt
+	UART_IntConfig(LPC_UART3, UART_INTCFG_RBR, ENABLE);
+
 
 //=================================================================================
 
@@ -166,6 +177,10 @@ int main (void) {
     while (1)
     {
 //========================================================
+
+    	if (got_msg) {
+    		oled_clearScreen(OLED_COLOR_WHITE);
+    	}
 
 
 //========================================================
@@ -299,7 +314,7 @@ void startInit(void){
     init_ssp();
     init_GPIO();
 
-	acc_init();						// initiate devices
+	acc_init();								// initiate devices
 	pca9532_init();
     oled_init();
     temp_init(&getUsTick);
@@ -312,8 +327,8 @@ void startInit(void){
 	calibrateAcc(xx,yy,zz);					// start up calibration of accelerometer
 	rgbInit();
 
-	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
-	oled_clearScreen(OLED_COLOR_BLACK);  // make oled screen blank
+	led7seg_setChar('*',FALSE);				// make 7 seg disp nothing
+	oled_clearScreen(OLED_COLOR_BLACK);  	// make oled screen blank
 
 }
 
@@ -368,31 +383,7 @@ void SysTick_Handler(void){     	// SysTick interrupt Handler.
 //=============================
 
 
-void oled_value_clear (void){
-//	uint8_t space[5] = "    ";
-//	uint8_t space1[6] = "     ";
-//	uint8_t space2[7] = "       ";
-//
-//
-////	12ms
-////	oled_clearScreen(OLED_COLOR_BLACK);
-//
-//	//TODO
-////	250ms
-//	oled_putString(63, 16, (uint8_t*)space, OLED_COLOR_BLACK, OLED_COLOR_BLACK);
-//	oled_putString(55, 24, (uint8_t*)space1, OLED_COLOR_BLACK, OLED_COLOR_BLACK);
-//	oled_putString(47, 32, (uint8_t*)space2, OLED_COLOR_BLACK, OLED_COLOR_BLACK);
-//	oled_putString(47, 40, (uint8_t*)space2, OLED_COLOR_BLACK, OLED_COLOR_BLACK);
-//	oled_putString(47, 48, (uint8_t*)space2, OLED_COLOR_BLACK, OLED_COLOR_BLACK);
-//	oled_putString(32, 16, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-//	oled_putString(32, 24, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-//	oled_putString(32, 32, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-//	oled_putString(32, 40, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-//	oled_putString(32, 48, "         ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-}
-
 void oled_update (void){
-	uint32_t before = msTick;
 	uint8_t str_value_temp[15] = {};
 	uint8_t str_value_lux[15] = {};
 	uint8_t str_value_ax[15] = {};
@@ -407,65 +398,58 @@ void oled_update (void){
 	readTemp();
 	//50ms
 
-	sprintf(str_value_temp,"%2.1f",t);
-	sprintf(str_value_lux,"%4d",l);
-	sprintf(str_value_ax,"%4d",x);
-	sprintf(str_value_ay,"%4d",y);
-	sprintf(str_value_az,"%4d",z);
-
+	sprintf(str_value_temp,"%.2f",t);
 	oled_putString(16, 16, (uint8_t*)str_value_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	sprintf(str_value_lux,"%4d",l);
 	oled_putString(16, 24, (uint8_t*)str_value_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	sprintf(str_value_ax,"%3d",x);
 	oled_putString(16, 32, (uint8_t*)str_value_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	sprintf(str_value_ay,"%3d",y);
 	oled_putString(16, 40, (uint8_t*)str_value_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	sprintf(str_value_az,"%3d",z);
 	oled_putString(16, 48, (uint8_t*)str_value_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	printf("update: %u\n",msTick - before);
 }
 
 void oled_DATE_label_value (void){
-	uint32_t time = msTick;
-	uint8_t str_value_temp[15] = {"DATE MODE"};
-	uint8_t str_value_lux[15] = {"DATE MODE"};
-	uint8_t str_value_ax[15] = {"DATE MODE"};
-	uint8_t str_value_ay[15] = {"DATE MODE"};
-	uint8_t str_value_az[15] = {"DATE MODE"};
 
+	uint8_t str_value_temp[15] = {"DATE MODE"};
 	oled_putString(16, 16, (uint8_t*)str_value_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	uint8_t str_value_lux[15] = {"DATE MODE"};
 	oled_putString(16, 24, (uint8_t*)str_value_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	uint8_t str_value_ax[15] = {"DATE MODE"};
 	oled_putString(16, 32, (uint8_t*)str_value_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	uint8_t str_value_ay[15] = {"DATE MODE"};
 	oled_putString(16, 40, (uint8_t*)str_value_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	uint8_t str_value_az[15] = {"DATE MODE"};
 	oled_putString(16, 48, (uint8_t*)str_value_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+
 	clear_date_label = 1;
-	printf("date label value: %u\n", msTick - time);
+
 }
 
 void oled_DATE_label (void){
-	uint32_t time = msTick;
-	uint8_t str_date[15] = {"MODE:DATE   "};
+	uint8_t str_date[15] = {"DATE"};
 
 	oled_putString(0, 0, (uint8_t*)str_date, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	printf("date label: %u\n", msTick - time);
 }
 
 void oled_PASSIVE_label (void){
-	uint8_t str_passive[15] = {"MODE:PASSIVE"};
+	uint8_t str_passive[15] = {"PASSIVE"};
 
 	oled_putString(0, 0, (uint8_t*)str_passive, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
 void oled_labels(void) {
-	uint32_t time = msTick;
 	uint8_t str_label_temp[15] = {"T :"};
-	uint8_t str_label_lux[15] = {"L :"};
-	uint8_t str_label_ax[15] = {"AX:"};
-	uint8_t str_label_ay[15] = {"AY:"};
-	uint8_t str_label_az[15] = {"AZ:"};
-
 	oled_putString(0, 16, (uint8_t*)str_label_temp, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	uint8_t str_label_lux[15] = {"L :"};
 	oled_putString(0, 24, (uint8_t*)str_label_lux, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	uint8_t str_label_ax[15] = {"AX:"};
 	oled_putString(0, 32, (uint8_t*)str_label_ax, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	uint8_t str_label_ay[15] = {"AY:"};
 	oled_putString(0, 40, (uint8_t*)str_label_ay, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	uint8_t str_label_az[15] = {"AZ:"};
 	oled_putString(0, 48, (uint8_t*)str_label_az, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	printf("labels: %u\n", msTick - time);
 }
 
 
@@ -742,19 +726,16 @@ void rgb_off(void){
 }
 
 void rgbInvert(void) {
-	uint8_t red_state;
-//	uint8_t blue_state;
 
 	if (on_red == 1) {
-		red_state = GPIO_ReadValue(2);
-		GPIO_ClearValue(2,(red_state & (1 << 0)));
-		GPIO_SetValue(2,((~red_state) & (1 << 0)));
+		if (red_flag == 0) {
+			GPIO_SetValue(2,1 << 0);
+			red_flag = 1;
+		} else if (red_flag == 1) {
+			GPIO_ClearValue(2,1 << 0);
+			red_flag = 0;
+		}
 	}
-//	if (on_blue == 1) {									// somehow this method dont work for blue
-//		blue_state = GPIO_ReadValue(0);
-//		GPIO_ClearValue(0,(blue_state & (1 << 26)));
-//		GPIO_SetValue(0,((~blue_state) & (1 << 26)));
-//	}
 	if (on_blue == 1) {
 		if (blue_flag == 0) {
 			GPIO_SetValue(0,1<<26);
@@ -773,9 +754,6 @@ void rgbBlink(void) {
 		rgbTime = getMsTick();
 	}
 }
-
-
-
 
 
 //=============================
@@ -812,12 +790,13 @@ void PASSIVE_MODE (void){
 			update_request = 0;
 			if((l<50)&&(on_red==0)){				//conditions for which color to blink
 				on_red = 1;
-				on_blue = 1;
 				blue_flag = 0;						//view blue as off to on when blinkInvert is called
 				rgbBlink();							//call blink to synchronize
 			}
-			if((l>=50)&&(l<=1000)&&(on_blue==0)){	//conditions for which color to blink
+			if(((l>=50)&&(l<=1000))&&(on_blue==0)){	//conditions for which color to blink
 				on_blue = 1;
+				red_flag = 0;
+				rgbBlink();
 			}
 		}
 
@@ -838,6 +817,7 @@ void PASSIVE_MODE (void){
 	}
 
 }
+
 
 void DATE_MODE(void){
 	update_request = 0;
@@ -925,4 +905,26 @@ void clearUartBuf(void) {
 		uart_transmit[i] = 0;
 	}
 }
+
+
+
+void UART3_IRQHandler(void) {
+	uint8_t data;
+
+	UART_Receive(LPC_UART3, &data, 1, BLOCKING);
+
+	if (data!='\r')
+	{
+		uart_receive[count] = data;
+		count++;
+	}
+
+	if ((data == '\r')) {
+		UART_Receive(LPC_UART3, &data, 1, BLOCKING);
+		uart_receive[count]=0;
+		got_msg = 1;
+	}
+	NVIC_ClearPendingIRQ(UART3_IRQn);
+}
+
 

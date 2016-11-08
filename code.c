@@ -68,9 +68,10 @@ volatile uint8_t got_msg = 0;
 
 uint32_t passive_batt_cycle = 0;				//	battery
 uint32_t date_batt_cycle = 0;
-double total_batt = 100.0;
+double total_batt = 15.0;
 uint8_t sent10 = 0;								// flag to prevent spamming of uart
 uint8_t sent5 = 0;
+uint8_t send_batt = 0;
 uint8_t batt_buf[50];
 
 //============================
@@ -145,6 +146,7 @@ void init_uart(void);
 void send_UartData(void);
 void computeState(void);
 void clearUartBuf(void);
+void clearUartRxBuf(void);
 void UART3_IRQHandler(void);
 
 //=============================
@@ -182,9 +184,7 @@ int main (void) {
     {
 //========================================================
 
-    	if (total_batt != total_batt) {
-    		printf("batt lv: %.2lf\n", total_batt);
-    	}
+
 
 
 //========================================================
@@ -296,7 +296,7 @@ PINSEL_CFG_Type PinCfg;
 	PinCfg.Portnum=0; //P0.17
 	PinCfg.Pinnum=17;
 
-PINSEL_ConfigPin(&PinCfg);//joystick
+PINSEL_ConfigPin(&PinCfg);//sw2
 
 	PinCfg.Portnum=2; // P2.10
 	PinCfg.Pinnum=10;
@@ -317,6 +317,7 @@ PINSEL_ConfigPin(&PinCfg);//joystick up
 	PinCfg.Pinnum=3;
 
 PINSEL_ConfigPin(&PinCfg);//joystick down
+
 
 }
 
@@ -441,7 +442,7 @@ void oled_DATE_label_value (void){
 }
 
 void oled_DATE_label (void){
-	uint8_t str_date[15] = {"DATE   "};
+	uint8_t str_date[15] = {"DATE"};
 
 	oled_putString(0, 0, (uint8_t*)str_date, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
@@ -775,15 +776,13 @@ void rgbBlink(void) {
 void PASSIVE_MODE (void){
 	uint8_t btn = 0;
 	uint8_t date_impending[1] = {};
-	uint8_t initial_enter = 1;
-	uint8_t btn_batt = 1;
 
+	low_batt();
 	clearUartBuf();
 	sprintf(uart_transmit, "Entering PASSIVE Mode.\r\n");
 	send_UartData();
 	clearUartBuf();
 	mode = 0;
-	change_mode = 0;
 	update_request = 0;
 	end_PASSIVE_button = 0;
 	end_PASSIVE = 0;
@@ -796,13 +795,14 @@ void PASSIVE_MODE (void){
 	led7seg_setChar(0x24,TRUE); 					//set the 7seg to 0
 	oled_PASSIVE_label();							//print labels and first update of values
 	oled_labels();
+	oled_update();
 	rgbTime = getMsTick();
 	while(1){
+		checkUartMsg();
 		rgbBlink();									//call blink outside if condition to ensure constant blinking
 		led7segTimer();								//start the 7segtimer
-		if(update_request||initial_enter){							//update_request happens at 5,A,F
+		if(update_request){							//update_request happens at 5,A,F
 			oled_update();
-			initial_enter = 0;
 			update_request = 0;
 			if((l<50)&&(on_red==0)){				//conditions for which color to blink
 				on_red = 1;
@@ -815,7 +815,7 @@ void PASSIVE_MODE (void){
 				rgbBlink();
 			}
 		}
-		
+
 
 //------------------button pressed conditions---------------
 		btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
@@ -829,6 +829,7 @@ void PASSIVE_MODE (void){
 			sprintf(date_impending," ");			//clear the D
 			oled_putString(79, 1, (uint8_t*)date_impending, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 			passive_batt_cycle++;
+			UpdateBattery_level();
 			break;
 		}
 //EXTENTIONS----------------------------------------------------
@@ -836,6 +837,7 @@ void PASSIVE_MODE (void){
 		if(btn_batt==0){
 			BATT_MODE();
 		}
+
 
 	}
 
@@ -846,6 +848,7 @@ void DATE_MODE(void){
 	update_request = 0;
 	mode = 1;
 
+	low_batt();
 	clearUartBuf();
 	sprintf(uart_transmit, "Leaving PASSIVE Mode. Entering DATE Mode.\r\n");
 	send_UartData();
@@ -871,6 +874,7 @@ void DATE_MODE(void){
 		if(end_DATE){
 			end_DATE = 0;
 			date_batt_cycle++;
+			UpdateBattery_level();
 			break;
 		}
 	}
@@ -897,6 +901,7 @@ int round(double x) {
     n = x + 0.5;
     return n;
 }
+
 
 //=============================
 //		UART FUNCTIONS
@@ -942,6 +947,14 @@ void clearUartBuf(void) {
 	}
 }
 
+void clearUartRxBuf(void) {
+	int i, len;
+	len = strlen(uart_receive);
+	for (i=0; i<len; i++) {
+		uart_receive[i] = 0;
+	}
+}
+
 
 
 void UART3_IRQHandler(void) {
@@ -975,11 +988,12 @@ void UpdateBattery_level (void) {
 
 
 void low_batt(void) {
-	// if batt lower than 10%  send warning on the next instance of 7seg change
-	// if batt lower than 5%   auto "shutdown"  sleep mode ------>   the mode before entering passive
+	// if batt lower than 10%  send warning thru UART
+	// if batt lower than 5%   auto "shutdown" and go into sleep mode
 	if (total_batt < 10.0 && sent10 == 0) {
 		clearUartBuf();
-		sprintf(uart_transmit, "LOW BATTERY! Going into sleep mode soon.\nThe battter level is %.2lf\r\n", total_batt);
+		sprintf(uart_transmit, "LOW BATTERY! Going into sleep mode soon.\r\nThe battter level is %.2lf\r\n", total_batt);
+		send_UartData();
 		sent10 = 1;
 		// TODO
 		// make this send/show only when 7seg reach 0
@@ -988,7 +1002,7 @@ void low_batt(void) {
 	if (total_batt < 5.0 && sent5 == 0) {
 		//	send to uart once and make sleep
 		clearUartBuf();
-		sprintf(uart_transmit, "GOING INTO SLEEP MODE!\nThe battter level is %.2lf\r\n", total_batt);
+		sprintf(uart_transmit, "GOING INTO SLEEP MODE!\r\nThe battery level is %.2lf\r\n", total_batt);
 		send_UartData();
 		sent5 = 1;
 		// TODO
@@ -1001,8 +1015,10 @@ void checkUartMsg(void) {
 		// send BATT level thru UART
 		// if uart received "BATT"
 		clearUartBuf();
-		sprintf(uart_transmit, "The battter level is %.2lf\r\n", total_batt);
+		sprintf(uart_transmit, "The battery level is %.2lf\r\n", total_batt);
 		send_UartData();
+		
+		clearUartRxBuf();
 	}
 	if (uart_receive[0] == 'S' && uart_receive[1] == 'L' && uart_receive[2] == 'E' && uart_receive[3] == 'E' &&  uart_receive[4] == 'P') {
 		// if uart received "SLEEP"
@@ -1013,6 +1029,6 @@ void checkUartMsg(void) {
 void printBattStat(void) {
 	// when some switch is pushed to sth, show batt state on oled   but not in date mode preferablely
 	oled_clearScreen(OLED_COLOR_BLACK);
-	sprintf(batt_buf, "Battery Level:%.2lf", total_batt);
+	sprintf(batt_buf, "Batt:%.2lf", total_batt);
 	oled_putString(0, 31, (uint8_t*)batt_buf, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }

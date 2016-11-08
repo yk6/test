@@ -48,6 +48,8 @@ volatile uint32_t end_PASSIVE = 0;				// end of passive
 volatile uint8_t change_mode = 0;				// the instance when passive switch to date
 volatile uint32_t update_request = 0;			// 7seg update at 5,A,F
 
+volatile uint8_t batt_mode = 0;
+
 volatile uint32_t end_DATE = 0;					//end of date flag
 volatile uint32_t clear_date_label = 0;
 
@@ -67,7 +69,7 @@ volatile uint32_t count = 0;
 
 uint32_t passive_batt_cycle = 0;				//	battery
 uint32_t date_batt_cycle = 0;
-double total_batt = 15.0;
+double total_batt = 100.0;
 uint8_t sent10 = 0;								// flag to prevent spamming of uart
 uint8_t sent5 = 0;
 uint8_t send_batt = 0;
@@ -199,7 +201,13 @@ int main (void) {
 		if(start_condition){
 
 			PASSIVE_MODE();
-			DATE_MODE();
+			if(batt_mode){
+				BATT_MODE();
+				batt_mode = 0;
+			}else{
+				DATE_MODE();
+			}
+
 		}
 
 
@@ -515,6 +523,7 @@ void led7segTimer (void) {
 						change_mode = 1;
 						end_PASSIVE = 0;
 					}
+					low_batt();
 					led7seg_setChar(0x24,TRUE);
 					break;
 				case 1:
@@ -594,6 +603,7 @@ void led7segTimer (void) {
 						change_mode = 1;
 						end_PASSIVE = 0;
 					}
+					low_batt();
 					led7seg_setChar(0x24,TRUE);
 					break;
 				case 1:
@@ -778,6 +788,8 @@ void rgbBlink(void) {
 void PASSIVE_MODE (void){
 	uint8_t btn = 0;
 	uint8_t date_impending[1] = {};
+	uint8_t btn_batt = 0;
+	uint8_t initial_start = 1;
 
 	low_batt();
 	clearUartBuf();
@@ -797,21 +809,21 @@ void PASSIVE_MODE (void){
 	led7seg_setChar(0x24,TRUE); 					//set the 7seg to 0
 	oled_PASSIVE_label();							//print labels and first update of values
 	oled_labels();
-	oled_update();
 	rgbTime = getMsTick();
 	while(1){
 		checkUartMsg();
 		rgbBlink();									//call blink outside if condition to ensure constant blinking
 		led7segTimer();								//start the 7segtimer
-		if(update_request){							//update_request happens at 5,A,F
+		if(update_request||initial_start){							//update_request happens at 5,A,F
+			initial_start = 0;
 			oled_update();
 			update_request = 0;
-			if((l<50)&&(on_red==0)){				//conditions for which color to blink
+			if((l<WARNING_LOWER)&&(on_red==0)){				//conditions for which color to blink
 				on_red = 1;
 				blue_flag = 0;						//view blue as off to on when blinkInvert is called
 				rgbBlink();							//call blink to synchronize
 			}
-			if(((l>=50)&&(l<=1000))&&(on_blue==0)){	//conditions for which color to blink
+			if(((l>=WARNING_LOWER)&&(l<=WARNING_UPPER))&&(on_blue==0)){	//conditions for which color to blink
 				on_blue = 1;
 				red_flag = 0;
 				rgbBlink();
@@ -833,10 +845,11 @@ void PASSIVE_MODE (void){
 			break;
 		}
 //EXTENTIONS----------------------------------------------------
-//		btn_batt = (GPIO_ReadValue(0) >> 15) & (0x1);
-//		if(btn_batt==0){
-//			BATT_MODE();
-//		}
+		btn_batt = (GPIO_ReadValue(0) >> 15) & (0x1);
+		if(btn_batt==0){
+			batt_mode = 1;
+			break;
+		}
 
 
 	}
@@ -888,7 +901,7 @@ void BATT_MODE (void){
 	while(1){
 		batt_end = (GPIO_ReadValue(2) >> 3) & (0x1);
 		if(batt_end == 0)
-			PASSIVE_MODE();
+			break;
 	}
 }
 

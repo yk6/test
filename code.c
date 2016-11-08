@@ -68,7 +68,7 @@ volatile uint8_t got_msg = 0;
 
 uint32_t passive_batt_cycle = 0;				//	battery
 uint32_t date_batt_cycle = 0;
-double total_batt = 100.0;
+double total_batt = 15.0;
 uint8_t sent10 = 0;								// flag to prevent spamming of uart
 uint8_t sent5 = 0;
 uint8_t batt_buf[50];
@@ -182,27 +182,25 @@ int main (void) {
     {
 //========================================================
 
-    	if (total_batt != total_batt) {
-    		printf("batt lv: %.2lf\n", total_batt);
-    	}
+
 
 
 //========================================================
 
 
 
-//    	btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
-//		if(btn==0){
-//			falling_edge = 1;
-//		}
-//		if((btn==1) && (falling_edge==1)){
-//			start_condition = 1;
-//		}
-//		if(start_condition){
-//
-//			PASSIVE_MODE();
-//			DATE_MODE();
-//		}
+    	btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
+		if(btn==0){
+			falling_edge = 1;
+		}
+		if((btn==1) && (falling_edge==1)){
+			start_condition = 1;
+		}
+		if(start_condition){
+
+			PASSIVE_MODE();
+			DATE_MODE();
+		}
 
 
 
@@ -767,6 +765,7 @@ void PASSIVE_MODE (void){
 	uint8_t btn = 0;
 	uint8_t date_impending[1] = {};
 
+	low_batt();
 	clearUartBuf();
 	sprintf(uart_transmit, "Entering PASSIVE Mode.\r\n");
 	send_UartData();
@@ -819,6 +818,7 @@ void PASSIVE_MODE (void){
 			passive_batt_cycle++;
 			break;
 		}
+
 	}
 
 }
@@ -827,7 +827,8 @@ void PASSIVE_MODE (void){
 void DATE_MODE(void){
 	update_request = 0;
 	mode = 1;
-
+	
+	low_batt();
 	clearUartBuf();
 	sprintf(uart_transmit, "Leaving PASSIVE Mode. Entering DATE Mode.\r\n");
 	send_UartData();
@@ -853,6 +854,7 @@ void DATE_MODE(void){
 		if(end_DATE){
 			end_DATE = 0;
 			date_batt_cycle++;
+			UpdateBattery_level();
 			break;
 		}
 	}
@@ -945,11 +947,12 @@ void UpdateBattery_level (void) {
 
 
 void low_batt(void) {
-	// if batt lower than 10%  send warning on the next instance of 7seg change
-	// if batt lower than 5%   auto "shutdown"  sleep mode ------>   the mode before entering passive
+	// if batt lower than 10%  send warning thru UART
+	// if batt lower than 5%   auto "shutdown" and go into sleep mode 
 	if (total_batt < 10.0 && sent10 == 0) {
 		clearUartBuf();
-		sprintf(uart_transmit, "LOW BATTERY! Going into sleep mode soon.\nThe battter level is %.2lf\r\n", total_batt);
+		sprintf(uart_transmit, "LOW BATTERY! Going into sleep mode soon.\r\nThe battter level is %.2lf\r\n", total_batt);
+		send_UartData();
 		sent10 = 1;
 		// TODO
 		// make this send/show only when 7seg reach 0
@@ -958,7 +961,7 @@ void low_batt(void) {
 	if (total_batt < 5.0 && sent5 == 0) {
 		//	send to uart once and make sleep
 		clearUartBuf();
-		sprintf(uart_transmit, "GOING INTO SLEEP MODE!\nThe battter level is %.2lf\r\n", total_batt);
+		sprintf(uart_transmit, "GOING INTO SLEEP MODE!\r\nThe battter level is %.2lf\r\n", total_batt);
 		send_UartData();
 		sent5 = 1;
 		// TODO
@@ -971,7 +974,7 @@ void checkUartMsg(void) {
 		// send BATT level thru UART
 		// if uart received "BATT"
 		clearUartBuf();
-		sprintf(uart_transmit, "The battter level is %.2lf\r\n", total_batt);
+		sprintf(uart_transmit, "The battery level is %.2lf\r\n", total_batt);
 		send_UartData();
 	}
 	if (uart_receive[0] == 'S' && uart_receive[1] == 'L' && uart_receive[2] == 'E' && uart_receive[3] == 'E' &&  uart_receive[4] == 'P') {

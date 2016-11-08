@@ -145,11 +145,12 @@ void clearUartBuf(void);
 void UART3_IRQHandler(void);
 
 //=============================
-//		BATTERY MODE
+//		BATT FUNCTIONS
 //=============================
-
-
-
+void UpdateBattery_level(void);
+void low_batt(void);
+void checkUartMsg(void);
+void printBattStat(void);
 
 
 int main (void) {
@@ -927,4 +928,56 @@ void UART3_IRQHandler(void) {
 	NVIC_ClearPendingIRQ(UART3_IRQn);
 }
 
+//=============================
+//		BATT FUNCTIONS
+//=============================
+// only updates battery in passive mode
 
+void UpdateBattery_level (void) {	
+	// 1 cycle of passive uses 0.05% of total, 1 cycle of date uses 1% 
+	total_batt -= (passive_batt_cycle * 0.05 + date_batt_cycle * 1.0); 
+}
+
+	
+void low_batt(void) {
+	// if batt lower than 10%  send warning on the next instance of 7seg change
+	// if batt lower than 5%   auto "shutdown"  sleep mode ------>   the mode before entering passive
+	if (total_batt < 10.0 && sent10 == 0) {
+		clearUartBuf();
+		sprintf(uart_transmit, "LOW BATTERY! Going into sleep mode soon.\nThe battter level is %.2lf\r\n", total_batt);
+		sent10 = 1;
+		// TODO
+		// make this send/show only when 7seg reach 0 
+
+	}
+	if (total_batt < 5.0 && sent5 == 0) {
+		//	send to uart once and make sleep 
+		clearUartBuf();
+		sprintf(uart_transmit, "GOING INTO SLEEP MODE!\nThe battter level is %.2lf\r\n", total_batt);
+		send_UartData();
+		sent5 = 1;
+		// TODO 
+		// go to sleep mode 
+	}
+}
+
+void checkUartMsg(void) {
+	if (uart_receive[0] == 'B' && uart_receive[1] == 'A' && uart_receive[2] == 'T' && uart_receive[3] == 'T' && count == 4) {
+		// send BATT level thru UART
+		// if uart received "BATT"
+		clearUartBuf();
+		sprintf(uart_transmit, "The battter level is %.2lf\r\n", total_batt);
+		send_UartData();
+	}
+	if (uart_receive[0] == 'S' && uart_receive[1] == 'L' && uart_receive[2] == 'E' && uart_receive[3] == 'E' &&  uart_receive[4] == 'P') {
+		// if uart received "SLEEP"
+		// go to sleep mode 
+	}
+}
+
+void printBattStat(void) {
+	// when some switch is pushed to sth, show batt state on oled   but not in date mode preferablely
+	oled_clearScreen(OLED_COLOR_BLACK);
+	sprintf(batt_buf, "Battery Level:%.2lf", total_batt);
+	oled_putString(0, 31, (uint8_t*)batt_buf, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+}

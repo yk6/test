@@ -62,9 +62,8 @@ volatile uint8_t red_flag = 0;					//	status flag for rgb red
 
 volatile uint8_t uart_transmit[100];			// UART
 volatile uint32_t transmit_count = 0;
-volatile uint8_t uart_receive[100];
+volatile uint8_t uart_receive[4];
 volatile uint32_t count = 0;
-volatile uint8_t got_msg = 0;
 
 uint32_t passive_batt_cycle = 0;				//	battery
 uint32_t date_batt_cycle = 0;
@@ -146,7 +145,6 @@ void init_uart(void);
 void send_UartData(void);
 void computeState(void);
 void clearUartBuf(void);
-void clearUartRxBuf(void);
 void UART3_IRQHandler(void);
 
 //=============================
@@ -200,7 +198,7 @@ int main (void) {
 		}
 		if(start_condition){
 
-			PASSIVE_MODE();			
+			PASSIVE_MODE();
 			DATE_MODE();
 		}
 
@@ -442,7 +440,7 @@ void oled_DATE_label_value (void){
 }
 
 void oled_DATE_label (void){
-	uint8_t str_date[15] = {"DATE"};
+	uint8_t str_date[15] = {"DATE   "};
 
 	oled_putString(0, 0, (uint8_t*)str_date, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
@@ -582,6 +580,8 @@ void led7segTimer (void) {
 					computeState();
 					send_UartData();
 					update_request = 1;
+					passive_batt_cycle++;
+					UpdateBattery_level();
 					break;
 				default:
 					led7seg_setChar('*',FALSE);
@@ -659,6 +659,8 @@ void led7segTimer (void) {
 					computeState();
 					send_UartData();
 					update_request = 1;
+					passive_batt_cycle++;
+					UpdateBattery_level();
 					break;
 				default:
 					led7seg_setChar('*',FALSE);
@@ -828,15 +830,13 @@ void PASSIVE_MODE (void){
 			change_mode = 0;
 			sprintf(date_impending," ");			//clear the D
 			oled_putString(79, 1, (uint8_t*)date_impending, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-			passive_batt_cycle++;
-			UpdateBattery_level();
 			break;
 		}
 //EXTENTIONS----------------------------------------------------
-		btn_batt = (GPIO_ReadValue(0) >> 15) & (0x1);
-		if(btn_batt==0){
-			BATT_MODE();
-		}
+//		btn_batt = (GPIO_ReadValue(0) >> 15) & (0x1);
+//		if(btn_batt==0){
+//			BATT_MODE();
+//		}
 
 
 	}
@@ -892,16 +892,6 @@ void BATT_MODE (void){
 	}
 }
 
-//==============================
-//		MATH FUNCTION
-//==============================
-
-int round(double x) {
-	int n;
-    n = x + 0.5;
-    return n;
-}
-
 
 //=============================
 //		UART FUNCTIONS
@@ -947,19 +937,8 @@ void clearUartBuf(void) {
 	}
 }
 
-void clearUartRxBuf(void) {
-	int i, len;
-	len = strlen(uart_receive);
-	for (i=0; i<len; i++) {
-		uart_receive[i] = 0;
-	}
-}
-
-
-
 void UART3_IRQHandler(void) {
 	uint8_t data;
-
 	UART_Receive(LPC_UART3, &data, 1, BLOCKING);
 
 	if (data!='\r')
@@ -967,13 +946,11 @@ void UART3_IRQHandler(void) {
 		uart_receive[count] = data;
 		count++;
 	}
-
-	if ((data == '\r')) {
-		UART_Receive(LPC_UART3, &data, 1, BLOCKING);
-		uart_receive[count]=0;
-		got_msg = 1;
+	if (uart_receive[0] == 'B' && uart_receive[1] == 'A' && uart_receive[2] == 'T' && uart_receive[3] == 'T' && count == 4){
+		send_batt = 1;
+		count = 0;
 	}
-	NVIC_ClearPendingIRQ(UART3_IRQn);
+
 }
 
 //=============================
@@ -984,6 +961,8 @@ void UART3_IRQHandler(void) {
 void UpdateBattery_level (void) {
 	// 1 cycle of passive uses 0.05% of total, 1 cycle of date uses 1%
 	total_batt -= (passive_batt_cycle * 0.05 + date_batt_cycle * 1.0);
+	passive_batt_cycle = 0;
+	date_batt_cycle = 0;
 }
 
 
@@ -1011,18 +990,16 @@ void low_batt(void) {
 }
 
 void checkUartMsg(void) {
-	if (uart_receive[0] == 'B' && uart_receive[1] == 'A' && uart_receive[2] == 'T' && uart_receive[3] == 'T' && count == 4) {
+	if (send_batt == 1) {
 		// send BATT level thru UART
 		// if uart received "BATT"
 		clearUartBuf();
-		sprintf(uart_transmit, "The battery level is %.2lf\r\n", total_batt);
+		sprintf(uart_transmit, "\r\nThe battery level is %.2lf\r\n", total_batt);
 		send_UartData();
-		
-		clearUartRxBuf();
-	}
-	if (uart_receive[0] == 'S' && uart_receive[1] == 'L' && uart_receive[2] == 'E' && uart_receive[3] == 'E' &&  uart_receive[4] == 'P') {
-		// if uart received "SLEEP"
-		// go to sleep mode
+		clearUartBuf();
+		sprintf(uart_transmit, "System on time is %u seconds\r\n", msTick/1000);
+		send_UartData();
+		send_batt = 0;
 	}
 }
 

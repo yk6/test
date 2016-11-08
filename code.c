@@ -48,6 +48,8 @@ volatile uint32_t end_PASSIVE = 0;				// end of passive
 volatile uint8_t change_mode = 0;				// the instance when passive switch to date
 volatile uint32_t update_request = 0;			// 7seg update at 5,A,F
 
+volatile uint8_t batt_mode = 0;
+
 volatile uint32_t end_DATE = 0;					//end of date flag
 volatile uint32_t clear_date_label = 0;
 
@@ -191,18 +193,22 @@ int main (void) {
 
 
 
-//    	btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
-//		if(btn==0){
-//			falling_edge = 1;
-//		}
-//		if((btn==1) && (falling_edge==1)){
-//			start_condition = 1;
-//		}
-//		if(start_condition){
-//
-//			PASSIVE_MODE();
-//			DATE_MODE();
-//		}
+    	btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
+		if(btn==0){
+			falling_edge = 1;
+		}
+		if((btn==1) && (falling_edge==1)){
+			start_condition = 1;
+		}
+		if(start_condition){
+
+			PASSIVE_MODE();
+			if(batt_mode){
+				BATT_MODE();
+				PASSIVE_MODE();
+			}
+			DATE_MODE();
+		}
 
 
 
@@ -296,7 +302,7 @@ PINSEL_CFG_Type PinCfg;
 	PinCfg.Portnum=0; //P0.17
 	PinCfg.Pinnum=17;
 
-PINSEL_ConfigPin(&PinCfg);//sw2
+PINSEL_ConfigPin(&PinCfg);//joystick
 
 	PinCfg.Portnum=2; // P2.10
 	PinCfg.Pinnum=10;
@@ -308,6 +314,15 @@ PINSEL_ConfigPin(&PinCfg);//sw3
 
 PINSEL_ConfigPin(&PinCfg);//sw4
 
+	PinCfg.Portnum=0; // P0.15
+	PinCfg.Pinnum=15;
+
+PINSEL_ConfigPin(&PinCfg);//joystick 
+
+	PinCfg.Portnum=2; // P2.3
+	PinCfg.Pinnum=3;
+
+PINSEL_ConfigPin(&PinCfg);//joystick
 
 }
 
@@ -432,7 +447,7 @@ void oled_DATE_label_value (void){
 }
 
 void oled_DATE_label (void){
-	uint8_t str_date[15] = {"DATE"};
+	uint8_t str_date[15] = {"DATE   "};
 
 	oled_putString(0, 0, (uint8_t*)str_date, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
@@ -766,12 +781,15 @@ void rgbBlink(void) {
 void PASSIVE_MODE (void){
 	uint8_t btn = 0;
 	uint8_t date_impending[1] = {};
+	uint8_t initial_enter = 1;
+	uint8_t btn_batt = 1;
 
 	clearUartBuf();
 	sprintf(uart_transmit, "Entering PASSIVE Mode.\r\n");
 	send_UartData();
 	clearUartBuf();
 	mode = 0;
+	change_mode = 0;
 	update_request = 0;
 	end_PASSIVE_button = 0;
 	end_PASSIVE = 0;
@@ -784,13 +802,13 @@ void PASSIVE_MODE (void){
 	led7seg_setChar(0x24,TRUE); 					//set the 7seg to 0
 	oled_PASSIVE_label();							//print labels and first update of values
 	oled_labels();
-	oled_update();
 	rgbTime = getMsTick();
 	while(1){
 		rgbBlink();									//call blink outside if condition to ensure constant blinking
 		led7segTimer();								//start the 7segtimer
-		if(update_request){							//update_request happens at 5,A,F
+		if(update_request||initial_enter){							//update_request happens at 5,A,F
 			oled_update();
+			initial_enter = 0;
 			update_request = 0;
 			if((l<50)&&(on_red==0)){				//conditions for which color to blink
 				on_red = 1;
@@ -803,7 +821,11 @@ void PASSIVE_MODE (void){
 				rgbBlink();
 			}
 		}
-
+		btn_batt = (GPIO_ReadValue(0) >> 15) & (0x1);
+		if(btn_batt==0){
+			change_mode = 1;
+			batt_mode = 1;
+		}
 
 //------------------button pressed conditions from here below---------------
 		btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
@@ -855,6 +877,17 @@ void DATE_MODE(void){
 			date_batt_cycle++;
 			break;
 		}
+	}
+}
+
+void BATT_MODE (void){
+	uint8_t batt_end = 1;
+	
+	printBattStat();
+	while(1){
+		batt_end = (GPIO_ReadValue(2) >> 3) & (0x1);
+		if(batt_end == 0)
+			break;
 	}
 }
 

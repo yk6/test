@@ -68,7 +68,10 @@ volatile uint8_t got_msg = 0;
 
 uint32_t passive_batt_lv = 0;					//	battery
 uint32_t date_batt_lv = 0;
-
+double total_batt = 100.0;
+uint8_t sent10 = 0;								// flag to prevent spamming of uart
+uint8_t sent5 = 0;
+uint8_t batt_buf[50];
 
 //============================
 //		INITIALISATION
@@ -179,9 +182,7 @@ int main (void) {
     {
 //========================================================
 
-    	if (got_msg) {
-    		oled_clearScreen(OLED_COLOR_WHITE);
-    	}
+
 
 
 //========================================================

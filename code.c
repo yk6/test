@@ -48,8 +48,6 @@ volatile uint32_t end_PASSIVE = 0;				// end of passive
 volatile uint8_t change_mode = 0;				// the instance when passive switch to date
 volatile uint32_t update_request = 0;			// 7seg update at 5,A,F
 
-volatile uint8_t batt_mode = 0;
-
 volatile uint32_t end_DATE = 0;					//end of date flag
 volatile uint32_t clear_date_label = 0;
 
@@ -202,11 +200,7 @@ int main (void) {
 		}
 		if(start_condition){
 
-			PASSIVE_MODE();
-			if(batt_mode){
-				BATT_MODE();
-				PASSIVE_MODE();
-			}
+			PASSIVE_MODE();			
 			DATE_MODE();
 		}
 
@@ -317,12 +311,12 @@ PINSEL_ConfigPin(&PinCfg);//sw4
 	PinCfg.Portnum=0; // P0.15
 	PinCfg.Pinnum=15;
 
-PINSEL_ConfigPin(&PinCfg);//joystick 
+PINSEL_ConfigPin(&PinCfg);//joystick up
 
 	PinCfg.Portnum=2; // P2.3
 	PinCfg.Pinnum=3;
 
-PINSEL_ConfigPin(&PinCfg);//joystick
+PINSEL_ConfigPin(&PinCfg);//joystick down
 
 }
 
@@ -821,13 +815,9 @@ void PASSIVE_MODE (void){
 				rgbBlink();
 			}
 		}
-		btn_batt = (GPIO_ReadValue(0) >> 15) & (0x1);
-		if(btn_batt==0){
-			change_mode = 1;
-			batt_mode = 1;
-		}
+		
 
-//------------------button pressed conditions from here below---------------
+//------------------button pressed conditions---------------
 		btn = (GPIO_ReadValue(1) >> 31) & (0x1) ;
 		if(btn==0){
 			end_PASSIVE_button = 1;
@@ -841,6 +831,12 @@ void PASSIVE_MODE (void){
 			passive_batt_cycle++;
 			break;
 		}
+//EXTENTIONS----------------------------------------------------
+		btn_batt = (GPIO_ReadValue(0) >> 15) & (0x1);
+		if(btn_batt==0){
+			BATT_MODE();
+		}
+
 	}
 
 }
@@ -882,12 +878,13 @@ void DATE_MODE(void){
 
 void BATT_MODE (void){
 	uint8_t batt_end = 1;
-	
+
+	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
 	printBattStat();
 	while(1){
 		batt_end = (GPIO_ReadValue(2) >> 3) & (0x1);
 		if(batt_end == 0)
-			break;
+			PASSIVE_MODE();
 	}
 }
 

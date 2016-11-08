@@ -157,6 +157,7 @@ void low_batt(void);
 void checkUartMsg(void);
 void printBattStat(void);
 
+//=========================================================================================
 
 int main (void) {
 	uint8_t btn = 0;
@@ -503,7 +504,7 @@ void calibrateAcc(int8_t xx, int8_t yy, int8_t zz) {
 void led7segTimer (void) {
 	uint32_t time_diff = 0;
 
-	if(indicatorTime > getMsTick()){									//mstik overflow condition
+	if(led7segTime > getMsTick()){									//mstik overflow condition
 		time_diff = (0xFFFFFFFF - led7segTime + 1) + getMsTick();
 	}else{
 		time_diff = getMsTick() - led7segTime;
@@ -791,7 +792,6 @@ void PASSIVE_MODE (void){
 	uint8_t btn_batt = 0;
 	uint8_t initial_start = 1;
 
-	low_batt();
 	clearUartBuf();
 	sprintf(uart_transmit, "Entering PASSIVE Mode.\r\n");
 	send_UartData();
@@ -803,12 +803,13 @@ void PASSIVE_MODE (void){
 	invert_7seg = 0;
 	on_red = 0;
 	on_blue = 0;									//initialise onblink values
+	led7segCount = 0;								//initialise global variables
 
 	oled_clearScreen(OLED_COLOR_BLACK);
-	led7segTime = getMsTick();						// set timer = current time
 	led7seg_setChar(0x24,TRUE); 					//set the 7seg to 0
 	oled_PASSIVE_label();							//print labels and first update of values
 	oled_labels();
+	led7segTime = getMsTick();						// set timer = current time
 	rgbTime = getMsTick();
 	while(1){
 		checkUartMsg();
@@ -895,11 +896,17 @@ void DATE_MODE(void){
 
 void BATT_MODE (void){
 	uint8_t batt_end = 1;
+	uint32_t batt_time = 0;
 
 	led7seg_setChar('*',FALSE);		// make 7 seg disp nothing
 	printBattStat();
+	batt_time = msTick;
+
 	while(1){
 		batt_end = (GPIO_ReadValue(2) >> 3) & (0x1);
+		if((msTick - batt_time) >= 5000){
+			break;
+		}
 		if(batt_end == 0)
 			break;
 	}
@@ -961,6 +968,7 @@ void UART3_IRQHandler(void) {
 	}
 	if (uart_receive[0] == 'B' && uart_receive[1] == 'A' && uart_receive[2] == 'T' && uart_receive[3] == 'T' && count == 4){
 		send_batt = 1;
+		
 		count = 0;
 	}
 
@@ -981,24 +989,21 @@ void UpdateBattery_level (void) {
 
 void low_batt(void) {
 	// if batt lower than 10%  send warning thru UART
-	// if batt lower than 5%   auto "shutdown" and go into sleep mode
+	// if batt lower than 5%
 	if (total_batt < 10.0 && sent10 == 0) {
 		clearUartBuf();
-		sprintf(uart_transmit, "LOW BATTERY! Going into sleep mode soon.\r\nThe battter level is %.2lf\r\n", total_batt);
+		sprintf(uart_transmit, "\r\nLOW BATTERY!\r\nThe battery level is %.2lf\r\n\n", total_batt);
 		send_UartData();
 		sent10 = 1;
-		// TODO
-		// make this send/show only when 7seg reach 0
+
 
 	}
 	if (total_batt < 5.0 && sent5 == 0) {
-		//	send to uart once and make sleep
+
 		clearUartBuf();
-		sprintf(uart_transmit, "GOING INTO SLEEP MODE!\r\nThe battery level is %.2lf\r\n", total_batt);
+		sprintf(uart_transmit, "\r\nBATTERY CRITICALLY LOW!!!\r\nThe battery level is %.2lf\r\n\n", total_batt);
 		send_UartData();
 		sent5 = 1;
-		// TODO
-		// go to sleep mode
 	}
 }
 

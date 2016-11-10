@@ -12,6 +12,7 @@
 #include "pca9532.h"
 #include "rgb.h"
 #include "temp.h"
+#include "eeprom.h"
 
 
 #define WARNING_LOWER 50
@@ -157,7 +158,14 @@ void low_batt(void);
 void checkUartMsg(void);
 void printBattStat(void);
 
-//=========================================================================================
+//=====================================
+// done assignment  now anyhow do
+
+
+
+
+//=====================================
+
 
 int main (void) {
 	uint8_t btn = 0;
@@ -176,10 +184,20 @@ int main (void) {
 
 	NVIC_EnableIRQ(UART3_IRQn);							//enable uart interrupt
 	UART_IntConfig(LPC_UART3, UART_INTCFG_RBR, ENABLE);
+	// Configure UART3 to enable RBR (Receiver Buffer Register) Interrupt
+
 
 
 //=================================================================================
-
+	eeprom_init();
+	uint8_t buf[1024]="";
+	uint8_t buf2[100] = "";
+	uint16_t len = 0;
+	int i;
+//
+	sprintf(buf,"This fking board...");
+	len = strlen(buf);
+//	eeprom_write(buf,10,len);
 
     while (1)
     {
@@ -187,6 +205,13 @@ int main (void) {
 
 
 
+    	len = eeprom_read(buf2,10,len);
+    	for (i=0;i<len;i++) {
+    		printf("%c",buf[i]);
+    	}
+    	printf("\n");
+    	printf("done\n");
+    	Timer0_Wait(2000);
 
 //========================================================
 
@@ -968,7 +993,6 @@ void UART3_IRQHandler(void) {
 	}
 	if (uart_receive[0] == 'B' && uart_receive[1] == 'A' && uart_receive[2] == 'T' && uart_receive[3] == 'T' && count == 4){
 		send_batt = 1;
-		
 		count = 0;
 	}
 
